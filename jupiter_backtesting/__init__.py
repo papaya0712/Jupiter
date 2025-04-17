@@ -1,4 +1,6 @@
 from .strategy import Strategy
 from .analyzer import Analyzer
 from .optimizer import Optimizer
-from .utils import NiceFunctions
+from .stats import SimpleStats
+from .utils import Utils
+
