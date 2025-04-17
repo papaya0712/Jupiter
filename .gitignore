@@ -3,8 +3,14 @@
 
 # Byte-compiled / cache
 __pycache__/
-*.py[cod]
-*.pkl
+.venv/
+*.pyc
+*.pyo
+*.pyd
+*.log
+dist/
+build/
+*.egg-info/
 
 # OS-specific
 .DS_Store
