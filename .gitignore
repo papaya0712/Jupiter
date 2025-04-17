@@ -1,0 +1,16 @@
+# Virtual Environment
+.venv_jup/
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pkl
+
+# OS-specific
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
