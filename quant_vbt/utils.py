@@ -4,9 +4,13 @@ from typing import Tuple
 
 class Utils:
     def validate_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        if df.index.has_duplicates:
-            raise ValueError("Duplicate timestamps found in index")
         
+        if not pd.api.types.is_datetime64_any_dtype(df.index):
+            if 'timestamp' in df.columns:
+                df = df.set_index('timestamp')
+            else:
+                raise ValueError("DataFrame has no DatetimeIndex and no 'timestamp' column")
+
         # remove duplicates
         if df.index.has_duplicates:
             df = df[~df.index.duplicated(keep='first')]
