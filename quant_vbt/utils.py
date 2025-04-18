@@ -3,16 +3,20 @@ from typing import Tuple
 
 class Utils:
     def validate_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
 
         if not isinstance(df.index, pd.DatetimeIndex):
             if 'timestamp' in df.columns:
-                df = df.copy()
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
                 df = df.set_index('timestamp')
+                df['timestamp'] = df.index
             else:
                 raise ValueError(
                     "DataFrame has no DatetimeIndex and no 'timestamp' column"
                 )
+        else:
+            if 'timestamp' not in df.columns:
+                df['timestamp'] = df.index
 
         if df.index.has_duplicates:
             df = df[~df.index.duplicated(keep='first')]
@@ -30,11 +34,10 @@ class Utils:
         delta = df.index.to_series().diff().dropna().min()
         if not isinstance(delta, pd.Timedelta) or delta <= pd.Timedelta(0):
             raise ValueError("Cannot determine a positive time delta from index")
-        
+
         split_idx = int(len(df) * (1 - test_size))
         split_date = df.index[split_idx]
 
-     
         train = df.loc[: split_date - delta]
         test  = df.loc[ split_date :]
 

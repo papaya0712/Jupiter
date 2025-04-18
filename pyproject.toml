@@ -1,6 +1,6 @@
 [project]
 name = "quant-vbt"
-version = "0.1.6.2"
+version = "0.1.6.3"
 description = "Lightweight Vectorbt extension with in-built statistical backtesting methods"
 readme = "README.md"
 requires-python = ">=3.8"
