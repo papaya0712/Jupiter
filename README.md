@@ -21,9 +21,9 @@ Quant-VBT makes it easy to design strategies, analyze them in depth, and validat
 
 - Walk-forward optimization
 - Monte Carlo simulations  
-  (bootstrapping, signal permutation, resampling)
+  (bootstrapping, permutation, resampling)
 - Sensitivity analysis for hyperparameters
-
+- more statistical tests/metrics
 ---
 
 ## 📦 Installation

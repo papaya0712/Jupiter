@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 import vectorbt as vbt
 
-from hyperopt import Trials, tpe, fmin, space_eval, STATUS_FAIL, STATUS_OK
+from hyperopt import Trials, tpe, hp, fmin, space_eval, STATUS_FAIL, STATUS_OK
+from numpy.random import RandomState
 from typing import Dict, Tuple
 from quant_vbt.analyzer import Analyzer
 from quant_vbt.stats import SimpleStats
 
-class Optimizer: 
+class Optimizer:
     def __init__(
         self,
         analyzer: Analyzer,
@@ -51,11 +52,13 @@ class Optimizer:
 
     def optimize(self) -> Tuple[Dict, Trials]:
         trials = Trials()
+        rstate = RandomState(69)
         best = fmin(
             fn=self._objective,
             space=self.strategy.param_space,
             algo=tpe.suggest,
             max_evals=self.max_evals,
-            trials=trials
+            trials=trials,
+            rstate=rstate
         )
         return space_eval(self.strategy.param_space, best), trials
