@@ -1,7 +1,9 @@
 from quantybt.strategy import Strategy
 from quantybt.stats import SimpleStats
 from quantybt.utils import Utils
+from quantybt.plots import PlotBacktest
 from typing import Dict, Any, Optional
+import plotly.graph_objects as go
 import vectorbt as vbt
 import pandas as pd
 
@@ -84,6 +86,20 @@ class Analyzer:
         )
     
     def backtest_results(self) -> pd.DataFrame:
-     """Returns a full performance summary of the backtest."""
-     return self.ss.backtest_summary(self.pf, self.timeframe)
-
+        """Returns a full performance summary of the backtest."""
+        return self.ss.backtest_summary(self.pf, self.timeframe)
+    
+    def plot_backtest(
+        self,
+        title: str = 'Backtest Results',
+        export_html: bool = False,
+        export_image: bool = False,
+        file_name: str = 'backtest_plot') -> go.Figure:
+        
+        plotter = PlotBacktest(self)
+        return plotter.plot_backtest(
+            title=title,
+            export_html=export_html,
+            export_image=export_image,
+            file_name=file_name
+        )

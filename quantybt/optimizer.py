@@ -11,13 +11,13 @@ from quantybt.stats import SimpleStats
 class Optimizer:
     def __init__(
         self,
-        analyzer: Analyzer,
+        analyzer,
         max_evals: int = 25,
-        target_metric: str = "sharpe_ratio"
+        target_metric: str = "sharpe_ratio",
     ):
         if analyzer.test_size <= 0:
             raise ValueError("Analyzer must use test_size > 0 for optimization")
-        
+
         self.train_df = analyzer.train_df
         self.strategy = analyzer.strategy
         self.timeframe = analyzer.timeframe
@@ -26,9 +26,9 @@ class Optimizer:
         self.init_cash = analyzer.pf.init_cash
         self.fees = analyzer.pf.fees
         self.slippage = analyzer.pf.slippage
-        self.ss = SimpleStats(price_col=analyzer.ss.price_col)
+        self.ss = analyzer.ss
 
-    def _objective(self, params: Dict) -> Dict:
+    def _objective(self, params):
         try:
             df = self.train_df.copy()
             df = self.strategy.preprocess_data(df, params)
@@ -36,21 +36,21 @@ class Optimizer:
 
             pf = vbt.Portfolio.from_signals(
                 close=df[self.ss.price_col],
-                entries=signals['entries'],
-                exits=signals['exits'],
+                entries=signals["entries"],
+                exits=signals["exits"],
                 freq=self.timeframe,
                 init_cash=self.init_cash,
                 fees=self.fees,
                 slippage=self.slippage,
-                direction='both'
+                direction="both",
             )
-            
-            metric_value = getattr(pf, self.target_metric)()
-            return {'loss': -metric_value, 'status': STATUS_OK}
-        except Exception as e:
-            return {'loss': np.nan, 'status': STATUS_FAIL, 'error': str(e)}
 
-    def optimize(self) -> Tuple[Dict, Trials]:
+            metric_value = getattr(pf, self.target_metric)()
+            return {"loss": -metric_value, "status": STATUS_OK}
+        except Exception:
+            return {"loss": np.inf, "status": STATUS_FAIL}
+
+    def optimize(self):
         trials = Trials()
         rstate = RandomState(69)
         best = fmin(
@@ -59,6 +59,6 @@ class Optimizer:
             algo=tpe.suggest,
             max_evals=self.max_evals,
             trials=trials,
-            rstate=rstate
+            rstate=rstate,
         )
         return space_eval(self.strategy.param_space, best), trials

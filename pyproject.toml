@@ -1,12 +1,12 @@
 [project]
 name = "quantybt"
-version = "0.1.2"
-description = "Lightweight Vectorbt extension with in-built statistical backtesting methods"
+version = "0.1.3"
+description = "Lightweight Vectorbt extension with in-built advanced statistical backtesting methods"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-  {name = "Dein Name", email = "deine@mail.de"}
+  {name = "Niklas", email = "niklasschluetter.business@gmail.com"}
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -16,10 +16,14 @@ classifiers = [
 dependencies = [
     "pandas",
     "numpy",
+    "scipy",       
+    "plotly",       
+    "kaleido",    
     "vectorbt",
     "pandas_ta",
     "hyperopt",
 ]
+
 
 [build-system]
 requires = ["setuptools", "wheel"]
