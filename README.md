@@ -55,4 +55,4 @@ If you use QuantyBT in your work or research, a mention or link back to this rep
 
 ## 📄 License
 
-This project is released under the MIT License. See [LICENSE](./LICENSE) for details.  
+This project is released under the MIT License. See [LICENSE](./LICENSE-txt) for details.  
