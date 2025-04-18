@@ -5,8 +5,8 @@ import vectorbt as vbt
 from hyperopt import Trials, tpe, hp, fmin, space_eval, STATUS_FAIL, STATUS_OK
 from numpy.random import RandomState
 from typing import Dict, Tuple
-from quant_vbt.analyzer import Analyzer
-from quant_vbt.stats import SimpleStats
+from quantybt.analyzer import Analyzer
+from quantybt.stats import SimpleStats
 
 class Optimizer:
     def __init__(

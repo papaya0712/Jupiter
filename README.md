@@ -1,4 +1,4 @@
-# Quant-VBT 🪐
+# QuantyBT 🪐
 
 **A lightweight extension for [`vectorbt`](https://github.com/polakowo/vectorbt) focused on statistical robustness, modularity, and clean strategy integration.**
 

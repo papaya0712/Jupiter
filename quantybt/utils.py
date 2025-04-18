@@ -5,16 +5,20 @@ class Utils:
     def validate_data(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
 
+
         if not isinstance(df.index, pd.DatetimeIndex):
             if 'timestamp' in df.columns:
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
                 df = df.set_index('timestamp')
+                df.index.name = None
                 df['timestamp'] = df.index
             else:
                 raise ValueError(
                     "DataFrame has no DatetimeIndex and no 'timestamp' column"
                 )
         else:
+            df.index.name = None
+
             if 'timestamp' not in df.columns:
                 df['timestamp'] = df.index
 

@@ -1,6 +1,6 @@
-from quant_vbt.strategy import Strategy
-from quant_vbt.stats import SimpleStats
-from quant_vbt.utils import Utils
+from quantybt.strategy import Strategy
+from quantybt.stats import SimpleStats
+from quantybt.utils import Utils
 from typing import Dict, Any, Optional
 import vectorbt as vbt
 import pandas as pd
