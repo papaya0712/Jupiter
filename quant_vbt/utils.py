@@ -7,6 +7,10 @@ class Utils:
         if df.index.has_duplicates:
             raise ValueError("Duplicate timestamps found in index")
         
+        # remove duplicates
+        if df.index.has_duplicates:
+            df = df[~df.index.duplicated(keep='first')]
+
         if not df.index.is_monotonic_increasing:
             df = df.sort_index()
             if not df.index.is_monotonic_increasing:
