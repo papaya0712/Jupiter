@@ -4,8 +4,8 @@ import vectorbt as vbt
 
 from hyperopt import Trials, tpe, fmin, space_eval, STATUS_FAIL, STATUS_OK
 from typing import Dict, Tuple
-from jupiter_backtesting.analyzer import Analyzer
-from jupiter_backtesting.stats import SimpleStats
+from quant_vbt.analyzer import Analyzer
+from quant_vbt.stats import SimpleStats
 
 class Optimizer: 
     def __init__(

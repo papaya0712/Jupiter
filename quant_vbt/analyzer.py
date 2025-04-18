@@ -1,6 +1,6 @@
-from jupiter_backtesting.strategy import Strategy
-from jupiter_backtesting.stats import SimpleStats
-from jupiter_backtesting.utils import Utils
+from quant_vbt.strategy import Strategy
+from quant_vbt.stats import SimpleStats
+from quant_vbt.utils import Utils
 from typing import Dict, Any, Optional
 import vectorbt as vbt
 import pandas as pd

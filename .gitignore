@@ -1,22 +1,15 @@
-# Virtual Environment
-.venv_jup/
-
-# Byte-compiled / cache
+# Byte-compiled / optimized / DLL files
 __pycache__/
-.venv/
-*.pyc
-*.pyo
-*.pyd
-*.log
-dist/
+*.py[cod]
+
+# Virtual environment
+.venv*/
+env*/
+
+# Build artifacts
 build/
+dist/
 *.egg-info/
 
-# OS-specific
-.DS_Store
-
-# Jupyter
-.ipynb_checkpoints/
-
-# IDE
+# VSCode
 .vscode/
