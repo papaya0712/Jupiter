@@ -1,7 +1,7 @@
 [project]
 name = "quantybt"
-version = "0.1.5"
-description = "Lightweight Vectorbt extension with in-built advanced statistical backtesting methods"
+version = "0.1.7"
+description = "lightweight backtesting framework with in-built advanced statistical backtesting methods and custom models"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
