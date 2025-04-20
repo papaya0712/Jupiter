@@ -18,7 +18,17 @@ class SimpleStats:
     def _returns(self, pf: vbt.Portfolio) -> Tuple[float, float]:
         performance = pf.total_return() * 100
         benchmark = pf.total_benchmark_return() * 100
+        
         return performance, benchmark
+    
+    @staticmethod
+    def _cagr_from_returns(dr: pd.Series, periods_per_year: float) -> float:
+        dr = dr.dropna()
+        if dr.empty:
+            return np.nan
+        end_val = (1.0 + dr).prod()
+        years   = len(dr) / periods_per_year
+        return (end_val ** (1.0 / years) - 1.0) if years > 0 and end_val > 0 else np.nan
 
     def _risk_metrics(self, timeframe: str, pf: vbt.Portfolio) -> Tuple[float, float, float, float]:
         equity = pf.value().values
@@ -80,42 +90,47 @@ class SimpleStats:
      return np.corrcoef(strat_returns, bench_returns)[0, 1]
 
     def backtest_summary(self, pf: vbt.Portfolio, timeframe: str) -> pd.DataFrame:
-     stats = pf.stats()
-     performance, benchmark = self._returns(pf)
+     stats = pf.stats()   
+     perf_strat, perf_bench = self._returns(pf)              # [%]
+     periods_per_year       = self._annual_factor(timeframe, root=False)
+
+     cagr_strat = self._cagr_from_returns(pf.returns(), periods_per_year) * 100
+     try:
+        cagr_bench = self._cagr_from_returns(pf.benchmark_returns(), periods_per_year) * 100
+     except AttributeError:
+        cagr_bench = np.nan
+
      dd_strat, dd_bench, vola_strat, vola_bench = self._risk_metrics(timeframe, pf)
-     sharpe, sortino, calmar = self._risk_adjusted_metrics(timeframe, pf)
-     corr = self._correlation_to_benchmark(pf)
+     sharpe, sortino, calmar                    = self._risk_adjusted_metrics(timeframe, pf)
+     corr                                        = self._correlation_to_benchmark(pf)
 
-     # from vbt exported stats
-     win_rate     = stats['Win Rate [%]']
-     best_trade   = stats['Best Trade [%]']
-     worst_trade  = stats['Worst Trade [%]']
-     avg_win      = stats['Avg Winning Trade [%]']
-     avg_loss     = stats['Avg Losing Trade [%]']
-     avg_win_dur  = stats['Avg Winning Trade Duration']
-     avg_loss_dur = stats['Avg Losing Trade Duration']
-     profit_fac   = stats['Profit Factor']
-
+     g = stats.get
      summary = {
-        "Strategy Performance              [%]": round(performance, 2),
-        "Benchmark Performance             [%]": round(benchmark, 2),
-        "Strategy Max Drawdown             [%]": round(dd_strat, 2),
-        "Benchmark Max Drawdown            [%]": round(dd_bench, 2),
-        "Annualized Strategy Volatility    [%]": round(vola_strat, 2),
-        "Annualized Benchmark Volatility   [%]": round(vola_bench, 2),
-        "Sharpe Ratio": round(sharpe, 2),
-        "Sortino Ratio": round(sortino, 2),
-        "Calmar Ratio": round(calmar, 2),
-        "Profit Factor                        ": round(profit_fac,2),
-        "Correlation to Benchmark"             : round(corr, 2),
-        "Total Trades"                         : int(stats['Total Trades']),
-        "Win Rate                          [%]": round(win_rate, 2),
-        "Best Trade                        [%]": round(best_trade, 2),
-        "Worst Trade                       [%]": round(worst_trade, 2),
-        "Avg Winning Trade                 [%]": round(avg_win, 2),
-        "Avg Losing Trade                  [%]": round(avg_loss, 2),
-        "Avg Winning Trade Duration           ": avg_win_dur,
-        "Avg Losing Trade Duration            ": avg_loss_dur,
-        }
-     return pd.DataFrame([summary]).T.rename(columns={0: "Value"})
+        # performance
+        "CAGR [%]":                            round(cagr_strat, 2),
+        "Benchmark CAGR [%]":                  round(cagr_bench, 2),
+        "Strategy Performance [%]":            round(perf_strat, 2),
+        "Benchmark Performance [%]":           round(perf_bench, 2),
+        # risk
+        "Strategy Max Drawdown [%]":           round(dd_strat, 2),
+        "Benchmark Max Drawdown [%]":          round(dd_bench, 2),
+        "Annualized Strategy Volatility [%]":  round(vola_strat, 2),
+        "Annualized Benchmark Volatility [%]": round(vola_bench, 2),
+        "Sharpe Ratio":                        round(sharpe, 2),
+        "Sortino Ratio":                       round(sortino, 2),
+        "Calmar Ratio":                        round(calmar, 2),
+        # other
+        "Profit Factor":                       round(g("Profit Factor", np.nan), 2),
+        "Correlation to Benchmark":            round(corr, 2),
+        "Total Trades":                        int(g("Total Trades", 0)),
+        "Win Rate [%]":                        round(g("Win Rate [%]", np.nan), 2),
+        "Best Trade [%]":                      round(g("Best Trade [%]", np.nan), 2),
+        "Worst Trade [%]":                     round(g("Worst Trade [%]", np.nan), 2),
+        "Avg Winning Trade [%]":               round(g("Avg Winning Trade [%]", np.nan), 2),
+        "Avg Losing Trade [%]":                round(g("Avg Losing Trade [%]", np.nan), 2),
+        "Avg Winning Trade Duration":          g("Avg Winning Trade Duration", np.nan),
+        "Avg Losing Trade Duration":           g("Avg Losing Trade Duration", np.nan),
+     }
 
+     
+     return pd.DataFrame.from_dict(summary, orient="index", columns=["Value"])

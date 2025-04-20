@@ -19,7 +19,9 @@ class Analyzer:
         init_cash: float = 1000,
         fees: float = 0.0002, 
         slippage: float = 0.000,
-        trade_side: Optional[str] = 'longonly'
+        trade_side: Optional[str] = 'longonly',
+        tp_stop: Optional[float] = None,
+        sl_stop: Optional[float] = None
     ):
         self.ss = SimpleStats(price_col=price_col)
         self.util = Utils()
@@ -30,6 +32,8 @@ class Analyzer:
         self.init_cash = init_cash
         self.fees = fees
         self.slippage = slippage
+        self.tp_stop = tp_stop
+        self.sl_stop= sl_stop
 
 
         # Data preparation
@@ -47,7 +51,7 @@ class Analyzer:
         self._validate_signals()
 
         # Portfolio
-        self.pf = vbt.Portfolio.from_signals(
+        portfolio_kwargs = dict(
             close=self.train_df[self.ss.price_col],
             entries=self.signals['entries'],
             exits=self.signals['exits'],
@@ -59,6 +63,13 @@ class Analyzer:
             slippage=slippage,
             direction=trade_side
         )
+
+        if tp_stop is not None:
+            portfolio_kwargs['tp_stop'] = tp_stop
+        if sl_stop is not None:
+            portfolio_kwargs['sl_stop'] = sl_stop
+
+        self.pf = vbt.Portfolio.from_signals(**portfolio_kwargs)
 
     def _validate_signals(self):
         if not self.signals['entries'].any():
@@ -74,7 +85,7 @@ class Analyzer:
         test_df = self.strategy.preprocess_data(self.test_df.copy(), self.params)
         test_signals = self.strategy.generate_signals(test_df, **self.params)
         
-        return vbt.Portfolio.from_signals(
+        portfolio_kwargs = dict(
             close=test_df[self.ss.price_col],
             entries=test_signals['entries'],
             exits=test_signals['exits'],
@@ -82,20 +93,19 @@ class Analyzer:
             init_cash=self.init_cash,
             fees=self.fees,
             slippage=self.slippage,
-            direction='both'
-        )
+            direction='longonly')
+        if self.tp_stop is not None:
+            portfolio_kwargs['tp_stop'] = self.tp_stop
+        if self.sl_stop is not None:
+            portfolio_kwargs['sl_stop'] = self.sl_stop
+
+        return vbt.Portfolio.from_signals(**portfolio_kwargs)
     
     def backtest_results(self) -> pd.DataFrame:
-        """Returns a full performance summary of the backtest."""
+        """returns summary"""
         return self.ss.backtest_summary(self.pf, self.timeframe)
     
-    def plot_backtest(
-        self,
-        title: str = 'Backtest Results',
-        export_html: bool = False,
-        export_image: bool = False,
-        file_name: str = 'backtest_plot') -> go.Figure:
-        
+    def plot_backtest(self,title: str = 'Backtest Results',export_html: bool = False,export_image: bool = False,file_name: str = 'backtest_plot') -> go.Figure:
         plotter = PlotBacktest(self)
         return plotter.plot_backtest(
             title=title,

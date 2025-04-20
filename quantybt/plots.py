@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.stats import gaussian_kde
 
-# plot for simple backtest from analyzer class
+# normal Backtest Summary
 class PlotBacktest:
     def __init__(self, analyzer):
         self.analyzer = analyzer
@@ -16,7 +16,7 @@ class PlotBacktest:
         title: str = "Backtest Results",
         export_html: bool = False,
         export_image: bool = False,
-        file_name: str = "backtest_plot",
+        file_name: str = "backtest_plot[QuantyBT]",
     ) -> go.Figure:
         strategy_equity = self.pf.value()
         try:
@@ -46,8 +46,8 @@ class PlotBacktest:
 
         factor_root = self.ss._annual_factor(self.analyzer.timeframe, root=True)
         factor = self.ss._annual_factor(self.analyzer.timeframe, root=False)
-        window = max(1, int(factor / 4))
-        window_label = "90-days"
+        window = max(1, int(factor / 2))
+        window_label = "180d"
 
         strat_mean = rets.rolling(window, min_periods=window).mean()
         strat_std = rets.rolling(window, min_periods=window).std(ddof=1)
@@ -193,4 +193,116 @@ class PlotBacktest:
 
         return fig
 
-# plot for oos backtest from optimizer class
+# OOS Summary
+class PlotTrainTestSplit:
+    def __init__(self, optimizer):
+        self.optimizer = optimizer
+        self.analyzer = optimizer.analyzer
+        self.ss = self.analyzer.ss
+
+    def plot_oos(self,
+                 title: str = 'In-Sample vs Out-of-Sample Performance',
+                 export_html: bool = False,
+                 export_image: bool = False,
+                 file_name: str = 'train_test_plot[QuantyBT]') -> go.Figure:
+        
+        eq_train = self.optimizer.train_pf.value()
+        eq_test  = self.optimizer.test_pf.value()
+
+        # Drawdowns
+        dd_train = self.optimizer.train_pf.drawdown()
+        dd_test  = self.optimizer.test_pf.drawdown()
+
+        # metrics
+        metrics = ['Total Return (%)', 'CAGR [%]', 'Max Drawdown (%)',
+                   'Sharpe Ratio', 'Sortino Ratio', 'Calmar Ratio']
+        train_metrics = self.ss.backtest_summary(self.optimizer.train_pf, self.analyzer.timeframe)
+        test_metrics  = self.ss.backtest_summary(self.optimizer.test_pf, self.analyzer.timeframe)
+
+        train_vals = [
+            train_metrics.loc['Strategy Performance [%]', 'Value'],
+            train_metrics.loc['CAGR [%]', 'Value'],
+            abs(train_metrics.loc['Strategy Max Drawdown [%]', 'Value']),
+            train_metrics.loc['Sharpe Ratio', 'Value'],
+            train_metrics.loc['Sortino Ratio', 'Value'],
+            train_metrics.loc['Calmar Ratio', 'Value']
+        ]
+        test_vals = [
+            test_metrics.loc['Strategy Performance [%]', 'Value'],
+            test_metrics.loc['CAGR [%]', 'Value'],
+            abs(test_metrics.loc['Strategy Max Drawdown [%]', 'Value']),
+            test_metrics.loc['Sharpe Ratio', 'Value'],
+            test_metrics.loc['Sortino Ratio', 'Value'],
+            test_metrics.loc['Calmar Ratio', 'Value']
+        ]
+
+        
+        fig = make_subplots(
+            rows=2, cols=2,
+            specs=[[{"type": "xy"}, {"type": "table"}],
+                   [{"type": "xy", "colspan": 2}, None]],
+            subplot_titles=['Equity Curves', 'Metrics Comparison', 'Drawdown Curves [%]'],
+            vertical_spacing=0.1,
+            horizontal_spacing=0.05
+        )
+
+        
+        is_color, oos_color = "#2ecc71", "#3498db"
+        is_fill, oos_fill   = "rgba(46, 204, 113, 0.2)", "rgba(52, 152, 219, 0.2)"
+
+        # Equity Traces
+        fig.add_trace(go.Scatter(x=eq_train.index, y=eq_train.values, mode='lines',
+                                 name='In-Sample Equity', line=dict(color=is_color)),
+                      row=1, col=1)
+        fig.add_trace(go.Scatter(x=eq_test.index, y=eq_test.values, mode='lines',
+                                 name='Out-of-Sample Equity', line=dict(color=oos_color)),
+                      row=1, col=1)
+
+        # table
+        fig.add_trace(go.Table(
+            header=dict(values=['Metric', 'IS', 'OOS']),
+            cells=dict(values=[metrics, train_vals, test_vals])
+        ), row=1, col=2)
+
+        n1 = len(dd_train)
+        x_train = np.arange(n1)
+        x_test  = np.arange(n1, n1 + len(dd_test))
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_train,
+                y=dd_train.values,
+                mode="lines",
+                name="In-Sample Drawdown",
+                line=dict(color=is_color),  
+                fill="tozeroy",
+                fillcolor=is_fill
+            ),
+            row=2, col=1
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=x_test,
+                y=dd_test.values,
+                mode="lines",
+                name="Out-of-Sample Drawdown",
+                line=dict(color=oos_color), 
+                fill="tozeroy",
+                fillcolor=oos_fill
+            ),
+            row=2, col=1
+        )
+
+        fig.update_layout(title=title, height=800, showlegend=True, template="plotly_dark")
+
+        if export_html:
+            fig.write_html(f"{file_name}.html")
+        if export_image:
+            try:
+                fig.write_image(f"{file_name}.png")
+            except ValueError:
+                pass
+
+        return fig
+    
+####
