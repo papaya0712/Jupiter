@@ -139,8 +139,8 @@ class Optimizer:
         )
 
         # Summaries
-        train_summary = self.ss.backtest_summary(self.train_pf, self.timeframe)
-        test_summary = self.ss.backtest_summary(self.test_pf, self.timeframe)
+        train_summary = self.s.backtest_summary(self.train_pf, self.timeframe)
+        test_summary = self.s.backtest_summary(self.test_pf, self.timeframe)
 
         return {
             'train_pf': self.train_pf,
