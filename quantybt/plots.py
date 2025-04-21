@@ -9,7 +9,7 @@ class _PlotBacktest:
     def __init__(self, analyzer):
         self.analyzer = analyzer
         self.pf = analyzer.pf
-        self.ss = analyzer.ss
+        self.ss = analyzer.s
 
     def plot_backtest(
         self,
@@ -44,8 +44,8 @@ class _PlotBacktest:
         ).any(axis=1)
         rets = rets[open_trades]
 
-        factor_root = self.ss._annual_factor(self.analyzer.timeframe, root=True)
-        factor = self.ss._annual_factor(self.analyzer.timeframe, root=False)
+        factor_root = self.s._annual_factor(self.analyzer.timeframe, root=True)
+        factor = self.s._annual_factor(self.analyzer.timeframe, root=False)
         window = max(1, int(factor / 2))
         window_label = "180d"
 
@@ -198,7 +198,7 @@ class _PlotTrainTestSplit:
     def __init__(self, optimizer):
         self.optimizer = optimizer
         self.analyzer = optimizer.analyzer
-        self.ss = self.analyzer.ss
+        self.ss = self.analyzer.s
 
     def plot_oos(self,
                  title: str = 'In-Sample vs Out-of-Sample Performance',
@@ -214,13 +214,16 @@ class _PlotTrainTestSplit:
         dd_test  = self.optimizer.test_pf.drawdown()
 
         # metrics
-        metrics = ['Total Return (%)', 'CAGR [%]', 'Max Drawdown (%)',
-                   'Sharpe Ratio', 'Sortino Ratio', 'Calmar Ratio']
-        train_metrics = self.ss.backtest_summary(self.optimizer.train_pf, self.analyzer.timeframe)
-        test_metrics  = self.ss.backtest_summary(self.optimizer.test_pf, self.analyzer.timeframe)
+        metrics = ['CAGR [%]', 
+                   'Max Drawdown (%)',
+                   'Sharpe Ratio', 
+                   'Sortino Ratio', 
+                   'Calmar Ratio']
+        
+        train_metrics = self.s.backtest_summary(self.optimizer.train_pf, self.analyzer.timeframe)
+        test_metrics  = self.s.backtest_summary(self.optimizer.test_pf, self.analyzer.timeframe)
 
         train_vals = [
-            train_metrics.loc['Strategy Performance [%]', 'Value'],
             train_metrics.loc['CAGR [%]', 'Value'],
             abs(train_metrics.loc['Strategy Max Drawdown [%]', 'Value']),
             train_metrics.loc['Sharpe Ratio', 'Value'],
@@ -228,7 +231,6 @@ class _PlotTrainTestSplit:
             train_metrics.loc['Calmar Ratio', 'Value']
         ]
         test_vals = [
-            test_metrics.loc['Strategy Performance [%]', 'Value'],
             test_metrics.loc['CAGR [%]', 'Value'],
             abs(test_metrics.loc['Strategy Max Drawdown [%]', 'Value']),
             test_metrics.loc['Sharpe Ratio', 'Value'],
