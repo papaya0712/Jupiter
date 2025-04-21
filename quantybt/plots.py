@@ -198,7 +198,7 @@ class _PlotTrainTestSplit:
     def __init__(self, optimizer):
         self.optimizer = optimizer
         self.analyzer = optimizer.analyzer
-        self.ss = self.analyzer.s
+        self.s = self.analyzer.s
 
     def plot_oos(self,
                  title: str = 'In-Sample vs Out-of-Sample Performance',
