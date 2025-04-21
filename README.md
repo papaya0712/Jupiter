@@ -7,7 +7,7 @@
 ## Features
 
 - **Simple integration** with vectorbt as the backtesting engine (`bt_instance`).
-- **Custom model support**: native wrappers for Hawkes processes, Bayesian models, and other statistical frameworks.
+- **Custom model support**: native wrappers for Hawkes processes, Kalmanfilter, and other statistical frameworks.
 - **Built-in data loaders** for cryptocurrencies (e.g., Bitcoin, Ethereum).
 - **Modular architecture**: define strategies by inheriting from a base `Strategy` class (`preprocess`, `generate_signals`, `param_space`).
 - **Robust validation**: out-of-sample splits, walk-forward optimization, and hyperparameter tuning via `hyperopt`.
