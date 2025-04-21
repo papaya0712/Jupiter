@@ -9,7 +9,7 @@ class _PlotBacktest:
     def __init__(self, analyzer):
         self.analyzer = analyzer
         self.pf = analyzer.pf
-        self.ss = analyzer.s
+        self.s = analyzer.s
 
     def plot_backtest(
         self,
