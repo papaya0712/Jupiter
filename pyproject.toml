@@ -1,6 +1,6 @@
 [project]
 name = "quantybt"
-version = "0.1.8.1"
+version = "0.1.8.2"
 description = "lightweight backtesting framework with in-built advanced statistical backtesting methods and custom models"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -8,11 +8,13 @@ license = { text = "MIT" }
 authors = [
   { name = "Niklas", email = "niklasschluetter.business@gmail.com" }
 ]
+
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent"
 ]
+
 dependencies = [
   "pandas",
   "numpy",

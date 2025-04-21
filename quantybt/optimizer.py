@@ -6,16 +6,16 @@ import plotly.graph_objects as go
 from hyperopt import Trials, tpe, hp, fmin, space_eval, STATUS_FAIL, STATUS_OK
 from typing import Dict, Tuple
 from quantybt.analyzer import Analyzer
-from quantybt.stats import SimpleStats
-from quantybt.plots import PlotTrainTestSplit
+from quantybt.stats import Stats
+from quantybt.plots import _PlotTrainTestSplit
 
 class Optimizer:
     def __init__(
         self,
         analyzer,
         max_evals: int = 25,
-        target_metric: str = "sharpe_ratio",
-    ):
+        target_metric: str = "sharpe_ratio",):
+
         if analyzer.test_size <= 0:
             raise ValueError("Analyzer must use test_size > 0 for optimization")
 
@@ -27,7 +27,7 @@ class Optimizer:
         self.init_cash = analyzer.init_cash
         self.fees = analyzer.fees
         self.slippage = analyzer.slippage
-        self.ss = analyzer.ss
+        self.s = analyzer.s
 
         self.best_params = None
         self.trials = None
@@ -39,12 +39,12 @@ class Optimizer:
 
         # Metrics map
         self.metrics_map = {
-            "sharpe_ratio": lambda pf: self.ss._risk_adjusted_metrics(self.timeframe, pf)[0],
-            "sortino_ratio": lambda pf: self.ss._risk_adjusted_metrics(self.timeframe, pf)[1],
-            "calmar_ratio": lambda pf: self.ss._risk_adjusted_metrics(self.timeframe, pf)[2],
-            "total_return": lambda pf: self.ss._returns(pf)[0],
-            "max_drawdown": lambda pf: self.ss._risk_metrics(self.timeframe, pf)[0],
-            "volatility": lambda pf: self.ss._risk_metrics(self.timeframe, pf)[2],
+            "sharpe_ratio": lambda pf: self.s._risk_adjusted_metrics(self.timeframe, pf)[0],
+            "sortino_ratio": lambda pf: self.s._risk_adjusted_metrics(self.timeframe, pf)[1],
+            "calmar_ratio": lambda pf: self.s._risk_adjusted_metrics(self.timeframe, pf)[2],
+            "total_return": lambda pf: self.s._returns(pf)[0],
+            "max_drawdown": lambda pf: self.s._risk_metrics(self.timeframe, pf)[0],
+            "volatility": lambda pf: self.s._risk_metrics(self.timeframe, pf)[2],
             "profit_factor": lambda pf: pf.stats().get("Profit Factor", np.nan),
         }
 
@@ -63,7 +63,7 @@ class Optimizer:
             df_is = self.strategy.preprocess_data(df_is, params)
             sig_is = self.strategy.generate_signals(df_is, **params)
             pf_is = vbt.Portfolio.from_signals(
-                close=df_is[self.ss.price_col],
+                close=df_is[self.s.price_col],
                 entries=sig_is.get('entries'), exits=sig_is.get('exits'),
                 short_entries=sig_is.get('short_entries'), short_exits=sig_is.get('short_exits'),
                 freq=self.timeframe, init_cash=self.init_cash,
@@ -77,7 +77,7 @@ class Optimizer:
             df_oos = self.strategy.preprocess_data(df_oos, params)
             sig_oos = self.strategy.generate_signals(df_oos, **params)
             pf_oos = vbt.Portfolio.from_signals(
-                close=df_oos[self.ss.price_col],
+                close=df_oos[self.s.price_col],
                 entries=sig_oos.get('entries'), exits=sig_oos.get('exits'),
                 short_entries=sig_oos.get('short_entries'), short_exits=sig_oos.get('short_exits'),
                 freq=self.timeframe, init_cash=self.init_cash,
@@ -117,7 +117,7 @@ class Optimizer:
         df_is = self.strategy.preprocess_data(df_is, self.best_params)
         sig_is = self.strategy.generate_signals(df_is, **self.best_params)
         self.train_pf = vbt.Portfolio.from_signals(
-            close=df_is[self.ss.price_col],
+            close=df_is[self.s.price_col],
             entries=sig_is.get('entries'), exits=sig_is.get('exits'),
             short_entries=sig_is.get('short_entries'), short_exits=sig_is.get('short_exits'),
             freq=self.timeframe, init_cash=self.init_cash,
@@ -155,10 +155,10 @@ class Optimizer:
                       export_image: bool = False,
                       file_name: str = 'train_test_plot[QuantyBT]') -> go.Figure:
         
-        plotter = PlotTrainTestSplit(self)
+        plotter = _PlotTrainTestSplit(self)
         return plotter.plot_oos(
             title=title,
             export_html=export_html,
             export_image=export_image,
             file_name=file_name
-        )
+            )

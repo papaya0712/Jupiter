@@ -3,7 +3,7 @@ import pandas as pd
 import vectorbt as vbt
 from typing import Tuple
 
-class SimpleStats:
+class Stats:
     def __init__(self, price_col: str = "close"):
         self.price_col = price_col
     
@@ -132,5 +132,5 @@ class SimpleStats:
         "Avg Losing Trade Duration":           g("Avg Losing Trade Duration", np.nan),
      }
 
-     
      return pd.DataFrame.from_dict(summary, orient="index", columns=["Value"])
+

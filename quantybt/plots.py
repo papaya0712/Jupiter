@@ -5,7 +5,7 @@ from plotly.subplots import make_subplots
 from scipy.stats import gaussian_kde
 
 # normal Backtest Summary
-class PlotBacktest:
+class _PlotBacktest:
     def __init__(self, analyzer):
         self.analyzer = analyzer
         self.pf = analyzer.pf
@@ -194,7 +194,7 @@ class PlotBacktest:
         return fig
 
 # OOS Summary
-class PlotTrainTestSplit:
+class _PlotTrainTestSplit:
     def __init__(self, optimizer):
         self.optimizer = optimizer
         self.analyzer = optimizer.analyzer

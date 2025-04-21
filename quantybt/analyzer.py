@@ -1,7 +1,7 @@
 from quantybt.strategy import Strategy
-from quantybt.stats import SimpleStats
+from quantybt.stats import Stats
 from quantybt.utils import Utils
-from quantybt.plots import PlotBacktest
+from quantybt.plots import _PlotBacktest
 from typing import Dict, Any, Optional
 import plotly.graph_objects as go
 import vectorbt as vbt
@@ -15,15 +15,15 @@ class Analyzer:
         full_data: pd.DataFrame,
         timeframe: str,
         price_col: str = "close",
-        test_size: float = 0,  # 0 = no split
+        test_size: float = 0,  # 0-1, 0=no split 
         init_cash: float = 1000,
         fees: float = 0.0002, 
         slippage: float = 0.000,
         trade_side: Optional[str] = 'longonly',
         tp_stop: Optional[float] = None,
-        sl_stop: Optional[float] = None
-    ):
-        self.ss = SimpleStats(price_col=price_col)
+        sl_stop: Optional[float] = None):
+
+        self.s = Stats(price_col=price_col)
         self.util = Utils()
         self.strategy = strategy
         self.params = params
@@ -52,7 +52,7 @@ class Analyzer:
 
         # Portfolio
         portfolio_kwargs = dict(
-            close=self.train_df[self.ss.price_col],
+            close=self.train_df[self.s.price_col],
             entries=self.signals['entries'],
             exits=self.signals['exits'],
             short_entries=self.signals.get('short_entries'),
@@ -86,7 +86,7 @@ class Analyzer:
         test_signals = self.strategy.generate_signals(test_df, **self.params)
         
         portfolio_kwargs = dict(
-            close=test_df[self.ss.price_col],
+            close=test_df[self.s.price_col],
             entries=test_signals['entries'],
             exits=test_signals['exits'],
             freq=self.timeframe,
@@ -103,13 +103,14 @@ class Analyzer:
     
     def backtest_results(self) -> pd.DataFrame:
         """returns summary"""
-        return self.ss.backtest_summary(self.pf, self.timeframe)
+        return self.s.backtest_summary(self.pf, self.timeframe)
     
     def plot_backtest(self,title: str = 'Backtest Results',export_html: bool = False,export_image: bool = False,file_name: str = 'backtest_plot') -> go.Figure:
-        plotter = PlotBacktest(self)
+        plotter = _PlotBacktest(self)
         return plotter.plot_backtest(
             title=title,
             export_html=export_html,
             export_image=export_image,
             file_name=file_name
-        )
+        )    
+
