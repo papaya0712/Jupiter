@@ -18,7 +18,7 @@ class MonteCarloBootstrapping:
                  ret_series: Optional[pd.Series] = None,
                  n_sims: int = 250,
                  random_seed: int = 69):
-        self.ss = analyzer.ss if analyzer is not None else None
+        self.s = analyzer.s if analyzer is not None else None
         if analyzer is not None:
             self.timeframe = analyzer.timeframe
             self.ret_series = analyzer.pf.returns()
