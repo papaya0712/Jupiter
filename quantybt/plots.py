@@ -371,9 +371,9 @@ class _PlotBootstrapping:
         lo = sim_eq.quantile(0.05, axis=1)
         hi = sim_eq.quantile(0.95, axis=1)
         mean = sim_eq.mean(axis=1)
-        ax_main.fill_between(sim_eq.index, lo, hi, color=sim_col, alpha=0.2, label='90% Konfidenzbereich')
-        ax_main.plot(sim_eq.index, mean, color=mean_col, linewidth=2, label='Simulationsmittel')
-        ax_main.plot(bench_eq.index, bench_eq.values, color=bench_col, linewidth=0.75, label='Benchmark Equity')
+        ax_main.fill_between(sim_eq.index, lo, hi, color=sim_col, alpha=0.2, label='90% Confidence Area')
+        ax_main.plot(sim_eq.index, mean, color=mean_col, linewidth=2, label='Mean')
+        ax_main.plot(bench_eq.index, bench_eq.values, color=bench_col, linewidth=0.75, label='Benchmark')
         ax_main.set_yscale('log')
         ax_main.xaxis.set_major_locator(mdates.AutoDateLocator())
         ax_main.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
@@ -389,11 +389,10 @@ class _PlotBootstrapping:
             sb.histplot(stats_df[m], bins=25, kde=True, edgecolor=grid, line_kws={'linewidth':0.5}, ax=ax)
 
             bench_val = bench_stats[m]
-            ax.axvline(bench_val, color=bench_col, linewidth=2, label='Benchmark')
+            ax.axvline(bench_val, color=bench_col, linewidth=1.25)
             ax.set_title(title)
             ax.grid(True, linestyle=':', linewidth=0.5, alpha=0.4)
             ax.tick_params(colors=text)
-            ax.legend(loc='upper right')
             for spine in ax.spines.values():
                 spine.set_visible(False)
 
