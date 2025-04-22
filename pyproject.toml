@@ -1,6 +1,6 @@
 [project]
 name = "quantybt"
-version = "0.1.8.6"
+version = "0.1.8.8"
 description = "lightweight backtesting framework with in-built advanced statistical backtesting methods and custom models"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -22,7 +22,7 @@ dependencies = [
   "plotly",
   "kaleido",
   "vectorbt",
-  "pandas_ta",
+  "seaborn",
   "hyperopt"
 ]
 
