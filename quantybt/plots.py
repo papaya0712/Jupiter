@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import seaborn as sb
 
 from typing import Tuple, TYPE_CHECKING
@@ -316,98 +317,84 @@ if TYPE_CHECKING:
     from quantybt.montecarlo import MonteCarloBootstrapping
 
 class _PlotBootstrapping:
-    def __init__(self, mc: 'MonteCarloBootstrapping'):
+    def __init__(self, mc):
         self.mc = mc
 
-    def plot(self) -> Tuple[plt.Figure, plt.Figure]:
-        
+    def _align_series(self, sim_eq: pd.DataFrame, bench_eq: pd.Series) -> Tuple[pd.DataFrame, pd.Series]:
+        sim_eq.index = pd.to_datetime(sim_eq.index)
+        bench_eq.index = pd.to_datetime(bench_eq.index)
+        start = max(sim_eq.index.min(), bench_eq.index.min())
+        end = min(sim_eq.index.max(), bench_eq.index.max())
+        sim_eq, bench_eq = sim_eq.loc[start:end], bench_eq.loc[start:end]
+        idx = sim_eq.index.union(bench_eq.index)
+        return sim_eq.reindex(idx).ffill(), bench_eq.reindex(idx).ffill()
+
+    def plot(self) -> plt.Figure:
         data = self.mc.mc_with_replacement()
-        sim_eq = data['simulated_equity_curves']
-        if sim_eq.empty:
-            return plt.figure(), plt.figure()
+        sim_eq, bench_eq = self._align_series(
+            data['simulated_equity_curves'],
+            self.mc.benchmark_equity()
+        )
+        stats_df = pd.DataFrame(data['simulated_stats'])
 
+ 
         try:
-            bench_eq = self.mc.benchmark_equity()
-        except AttributeError:
-            bench_eq = pd.Series(dtype=float, index=sim_eq.index)
-
-        DARK_BG        = '#111111'
-        GRID_COLOR     = '#444444'
-        BENCH_COLOR    = 'orchid'
-        EQUITY_LINE    = 'skyblue'
-        BAND_FILL      = 'skyblue'
-        MEAN_LINE      = 'mediumseagreen'
-        HIST_FILL      = 'skyblue'
-        KDE_LINE       = 'magenta'
-        TEXT_COLOR     = 'white'
-        GRID_EQ_ALPHA   = 0.3
-        GRID_HIST_ALPHA = 0.02
+            bench_returns = self.mc.pf.benchmark_returns()
+        except Exception:
+   
+            bench_series = self.mc.benchmark_equity().pct_change().dropna()
+            bench_returns = bench_series
+        bench_freq = self.mc._convert_frequency(bench_returns)
+        bench_stats = self.mc._analyze_series(bench_freq)
 
         plt.style.use('dark_background')
-        sb.set_palette("husl")
+        sb.set_theme()
+        bg = '#121212'; grid = '#2E2E2E'; text = '#E0E0E0'
+        sim_col, mean_col, bench_col = 'skyblue', 'green', 'red'
+        plt.rcParams.update({
+            'figure.facecolor': bg,
+            'axes.facecolor': bg,
+            'axes.edgecolor': grid,
+            'xtick.color': text,
+            'ytick.color': text,
+            'grid.color': grid,
+            'text.color': text,
+        })
 
-        fig1, ax = plt.subplots(figsize=(12, 8))
-        fig1.patch.set_facecolor(DARK_BG)
-        ax.set_facecolor(DARK_BG)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
 
-        lo5       = sim_eq.quantile(0.05, axis=1)
-        hi95      = sim_eq.quantile(0.95, axis=1)
-        mean_path = sim_eq.mean(axis=1)
+        fig = plt.figure(figsize=(18, 12))
+        gs = fig.add_gridspec(2, 3, height_ratios=[2, 1], hspace=0.3)
 
-
+        ax_main = fig.add_subplot(gs[0, :])
         for col in sim_eq.columns:
-            ax.plot(sim_eq.index, sim_eq[col], color=EQUITY_LINE, alpha=0.02)
+            ax_main.plot(sim_eq.index, sim_eq[col], color=sim_col, alpha=0.02, linewidth=0.5)
+        lo = sim_eq.quantile(0.05, axis=1)
+        hi = sim_eq.quantile(0.95, axis=1)
+        mean = sim_eq.mean(axis=1)
+        ax_main.fill_between(sim_eq.index, lo, hi, color=sim_col, alpha=0.2, label='90% Konfidenzbereich')
+        ax_main.plot(sim_eq.index, mean, color=mean_col, linewidth=2, label='Simulationsmittel')
+        ax_main.plot(bench_eq.index, bench_eq.values, color=bench_col, linewidth=0.75, label='Benchmark Equity')
+        ax_main.set_yscale('log')
+        ax_main.xaxis.set_major_locator(mdates.AutoDateLocator())
+        ax_main.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+        fig.autofmt_xdate(rotation=45)
+        ax_main.set_ylabel('Equity (log Skala)')
+        ax_main.legend(loc='upper left')
+        ax_main.grid(True, linestyle=':', linewidth=0.5, alpha=0.6)
 
-        ax.fill_between(sim_eq.index, lo5, hi95, color=BAND_FILL, alpha=0.4, label='5%-95% Band')
-        ax.plot(mean_path.index, mean_path.values, color=MEAN_LINE, linewidth=1.5, label='Mean Path')
+        metrics = ['AnnVol', 'Sharpe', 'MaxDrawdown']
+        titles  = ['Annualisierte Volatilität', 'Sharpe Ratio', 'Max Drawdown']
+        for i, (m, title) in enumerate(zip(metrics, titles)):
+            ax = fig.add_subplot(gs[1, i])
+            sb.histplot(stats_df[m], bins=25, kde=True, edgecolor=grid, line_kws={'linewidth':0.5}, ax=ax)
 
-        ax.plot(
-            bench_eq.index,
-            bench_eq.values,
-            color=BENCH_COLOR,
-            linewidth=2.5,
-            label='Benchmark Equity'
-        )
-
-        ax.set_yscale('log')
-        ax.set_title("Monte Carlo Simulations (Log Scale)", color=TEXT_COLOR)
-        ax.legend(facecolor=DARK_BG, edgecolor=TEXT_COLOR, loc='upper right')
-        ax.grid(color=GRID_COLOR, alpha=GRID_EQ_ALPHA)
-        plt.show()
-
-        # 5) Figure 2: Histogramme der Simulationsstatistiken
-        stats_df = pd.DataFrame(data['simulated_stats'])
-        metrics  = ['CumulativeReturn', 'AnnVol', 'Sharpe', 'MaxDrawdown']
-        fig2, axes = plt.subplots(1, 4, figsize=(18, 5))
-        fig2.patch.set_facecolor(DARK_BG)
-        for ax_h, metric in zip(axes, metrics):
-            ax_h.set_facecolor(DARK_BG)
-            sb.histplot(
-                data=stats_df[metric],
-                bins="fd",
-                kde=True,
-                color=HIST_FILL,
-                edgecolor='white',
-                line_kws={'color': KDE_LINE, 'linewidth': 2.5},
-                ax=ax_h
-            )
-            for spine in ax_h.spines.values():
+            bench_val = bench_stats[m]
+            ax.axvline(bench_val, color=bench_col, linewidth=2, label='Benchmark')
+            ax.set_title(title)
+            ax.grid(True, linestyle=':', linewidth=0.5, alpha=0.4)
+            ax.tick_params(colors=text)
+            ax.legend(loc='upper right')
+            for spine in ax.spines.values():
                 spine.set_visible(False)
-            ax_h.set_title(metric, color=TEXT_COLOR, fontweight='bold')
-            ax_h.grid(color=GRID_COLOR, alpha=GRID_HIST_ALPHA)
-            ax_h.tick_params(colors=TEXT_COLOR)
-            if ax_h.lines:
-                ax_h.lines[0].set_label('KDE')
-                ax_h.legend(
-                    facecolor=DARK_BG,
-                    edgecolor=TEXT_COLOR,
-                    labelcolor=TEXT_COLOR,
-                    fontsize=9,
-                    loc='upper right'
-                )
-        plt.tight_layout(pad=3.0)
-        plt.show()
 
-        return fig1, fig2
+        return fig
