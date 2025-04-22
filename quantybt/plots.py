@@ -7,6 +7,8 @@ import seaborn as sb
 from typing import Tuple, TYPE_CHECKING
 from plotly.subplots import make_subplots
 from scipy.stats import gaussian_kde
+from quantybt import Stats
+
 
 #### ============= normal Backtest Summary ============= ####
 class _PlotBacktest:
@@ -319,41 +321,65 @@ class _PlotBootstrapping:
     def __init__(self, mc: 'MonteCarloBootstrapping'):
         self.mc = mc
 
-    
     def plot(self) -> Tuple[plt.Figure, plt.Figure]:
+        
         data = self.mc.mc_with_replacement()
         sim_eq = data['simulated_equity_curves']
         if sim_eq.empty:
             return plt.figure(), plt.figure()
+
+        try:
+            bench_eq = self.mc.benchmark_equity()
+        except AttributeError:
+            bench_eq = pd.Series(dtype=float, index=sim_eq.index)
+
         DARK_BG        = '#111111'
         GRID_COLOR     = '#444444'
-        EQUITY_LINE    = 'white'
+        BENCH_COLOR    = 'orchid'
+        EQUITY_LINE    = 'skyblue'
         BAND_FILL      = 'skyblue'
-        MEAN_LINE      = 'yellow'
+        MEAN_LINE      = 'mediumseagreen'
         HIST_FILL      = 'skyblue'
         KDE_LINE       = 'magenta'
         TEXT_COLOR     = 'white'
         GRID_EQ_ALPHA   = 0.3
         GRID_HIST_ALPHA = 0.02
+
         plt.style.use('dark_background')
         sb.set_palette("husl")
+
         fig1, ax = plt.subplots(figsize=(12, 8))
         fig1.patch.set_facecolor(DARK_BG)
         ax.set_facecolor(DARK_BG)
         for spine in ax.spines.values():
             spine.set_visible(False)
+
         lo5       = sim_eq.quantile(0.05, axis=1)
         hi95      = sim_eq.quantile(0.95, axis=1)
         mean_path = sim_eq.mean(axis=1)
+
+
         for col in sim_eq.columns:
             ax.plot(sim_eq.index, sim_eq[col], color=EQUITY_LINE, alpha=0.02)
-        ax.fill_between(sim_eq.index, lo5, hi95, color=BAND_FILL, alpha=0.15, label='5%-95% Band')
+
+        ax.fill_between(sim_eq.index, lo5, hi95, color=BAND_FILL, alpha=0.4, label='5%-95% Band')
         ax.plot(mean_path.index, mean_path.values, color=MEAN_LINE, linewidth=1.5, label='Mean Path')
+
+        ax.plot(
+            bench_eq.index,
+            bench_eq.values,
+            color=BENCH_COLOR,
+            linewidth=2.5,
+            label='Benchmark Equity'
+        )
+
         ax.set_yscale('log')
         ax.set_title("Monte Carlo Simulations (Log Scale)", color=TEXT_COLOR)
         ax.legend(facecolor=DARK_BG, edgecolor=TEXT_COLOR, loc='upper right')
         ax.grid(color=GRID_COLOR, alpha=GRID_EQ_ALPHA)
         plt.show()
+
+        # 5) Figure 2: Histogramme der Simulationsstatistiken
         stats_df = pd.DataFrame(data['simulated_stats'])
         metrics  = ['CumulativeReturn', 'AnnVol', 'Sharpe', 'MaxDrawdown']
         fig2, axes = plt.subplots(1, 4, figsize=(18, 5))
@@ -385,6 +411,5 @@ class _PlotBootstrapping:
                 )
         plt.tight_layout(pad=3.0)
         plt.show()
-        return fig1, fig2
-####
 
+        return fig1, fig2
