@@ -4,10 +4,9 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import seaborn as sb
 
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 from plotly.subplots import make_subplots
 from scipy.stats import gaussian_kde
-from quantybt.montecarlo import MonteCarloBootstrapping
 
 #### ============= normal Backtest Summary ============= ####
 class _PlotBacktest:
@@ -313,18 +312,19 @@ class _PlotTrainTestSplit:
         return fig
     
 #### ============= Montecarlo Bootstrapping Summary ============= ####
+if TYPE_CHECKING:
+    from quantybt.montecarlo import MonteCarloBootstrapping
+
 class _PlotBootstrapping:
-    def __init__(self, mc: MonteCarloBootstrapping):
+    def __init__(self, mc: 'MonteCarloBootstrapping'):
         self.mc = mc
 
-    def plot_mc1(self, 
-             title: str = "Monte Carlo Simulations (Log Scale)", 
-             figsize: Tuple[int, int] = (12, 8)) -> None:
+    
+    def plot(self) -> Tuple[plt.Figure, plt.Figure]:
         data = self.mc.mc_with_replacement()
         sim_eq = data['simulated_equity_curves']
         if sim_eq.empty:
-            print("No simulation data to plot.")
-            return
+            return plt.figure(), plt.figure()
         DARK_BG        = '#111111'
         GRID_COLOR     = '#444444'
         EQUITY_LINE    = 'white'
@@ -337,8 +337,8 @@ class _PlotBootstrapping:
         GRID_HIST_ALPHA = 0.02
         plt.style.use('dark_background')
         sb.set_palette("husl")
-        fig, ax = plt.subplots(figsize=figsize)
-        fig.patch.set_facecolor(DARK_BG)
+        fig1, ax = plt.subplots(figsize=(12, 8))
+        fig1.patch.set_facecolor(DARK_BG)
         ax.set_facecolor(DARK_BG)
         for spine in ax.spines.values():
             spine.set_visible(False)
@@ -350,14 +350,14 @@ class _PlotBootstrapping:
         ax.fill_between(sim_eq.index, lo5, hi95, color=BAND_FILL, alpha=0.15, label='5%-95% Band')
         ax.plot(mean_path.index, mean_path.values, color=MEAN_LINE, linewidth=1.5, label='Mean Path')
         ax.set_yscale('log')
-        ax.set_title(title, color=TEXT_COLOR)
+        ax.set_title("Monte Carlo Simulations (Log Scale)", color=TEXT_COLOR)
         ax.legend(facecolor=DARK_BG, edgecolor=TEXT_COLOR, loc='upper right')
         ax.grid(color=GRID_COLOR, alpha=GRID_EQ_ALPHA)
         plt.show()
         stats_df = pd.DataFrame(data['simulated_stats'])
         metrics  = ['CumulativeReturn', 'AnnVol', 'Sharpe', 'MaxDrawdown']
-        fig, axes = plt.subplots(1, 4, figsize=(18, 5))
-        fig.patch.set_facecolor(DARK_BG)
+        fig2, axes = plt.subplots(1, 4, figsize=(18, 5))
+        fig2.patch.set_facecolor(DARK_BG)
         for ax_h, metric in zip(axes, metrics):
             ax_h.set_facecolor(DARK_BG)
             sb.histplot(
@@ -376,8 +376,15 @@ class _PlotBootstrapping:
             ax_h.tick_params(colors=TEXT_COLOR)
             if ax_h.lines:
                 ax_h.lines[0].set_label('KDE')
-                ax_h.legend(facecolor=DARK_BG, edgecolor=TEXT_COLOR, labelcolor=TEXT_COLOR, fontsize=9, loc='upper right')
+                ax_h.legend(
+                    facecolor=DARK_BG,
+                    edgecolor=TEXT_COLOR,
+                    labelcolor=TEXT_COLOR,
+                    fontsize=9,
+                    loc='upper right'
+                )
         plt.tight_layout(pad=3.0)
         plt.show()
+        return fig1, fig2
+####
 
-# 
