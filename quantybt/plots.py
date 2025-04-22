@@ -7,7 +7,7 @@ import seaborn as sb
 from typing import Tuple
 from plotly.subplots import make_subplots
 from scipy.stats import gaussian_kde
-from quantybt import MonteCarloBootstrapping
+from quantybt.montecarlo import MonteCarloBootstrapping
 
 #### ============= normal Backtest Summary ============= ####
 class _PlotBacktest:
