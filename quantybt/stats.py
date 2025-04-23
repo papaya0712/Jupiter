@@ -10,8 +10,7 @@ class Stats:
     def _annual_factor(self, timeframe: str, root: bool = True) -> float:
      periods = {
         '1m': 525600, '5m': 105120, '15m': 35040, '30m': 17520,
-        '1h': 8760, '2h': 4380, '4h': 2190, '1d': 365, '1w': 52
-     }
+        '1h': 8760, '2h': 4380, '4h': 2190, '1d': 365, '1w': 52}
      factor = periods.get(timeframe, 365)
      return np.sqrt(factor) if root else factor
     

@@ -41,7 +41,6 @@ class Utils:
 
         split_idx = int(len(df) * (1 - test_size))
         split_date = df.index[split_idx]
-
         train = df.loc[: split_date - delta]
         test  = df.loc[ split_date :]
 

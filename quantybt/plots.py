@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -333,15 +334,12 @@ class _PlotBootstrapping:
         data = self.mc.mc_with_replacement()
         sim_eq, bench_eq = self._align_series(
             data['simulated_equity_curves'],
-            self.mc.benchmark_equity()
-        )
+            self.mc.benchmark_equity())
+        
         stats_df = pd.DataFrame(data['simulated_stats'])
-
- 
         try:
             bench_returns = self.mc.pf.benchmark_returns()
         except Exception:
-   
             bench_series = self.mc.benchmark_equity().pct_change().dropna()
             bench_returns = bench_series
         bench_freq = self.mc._convert_frequency(bench_returns)
@@ -361,7 +359,6 @@ class _PlotBootstrapping:
             'text.color': text,
         })
 
-
         fig = plt.figure(figsize=(18, 12))
         gs = fig.add_gridspec(2, 3, height_ratios=[2, 1], hspace=0.3)
 
@@ -371,7 +368,7 @@ class _PlotBootstrapping:
         lo = sim_eq.quantile(0.05, axis=1)
         hi = sim_eq.quantile(0.95, axis=1)
         mean = sim_eq.mean(axis=1)
-        ax_main.fill_between(sim_eq.index, lo, hi, color=sim_col, alpha=0.2, label='90% Confidence Area')
+        ax_main.fill_between(sim_eq.index, lo, hi, color=sim_col, alpha=0.2, label='90% Confidence')
         ax_main.plot(sim_eq.index, mean, color=mean_col, linewidth=2, label='Mean')
         ax_main.plot(bench_eq.index, bench_eq.values, color=bench_col, linewidth=0.75, label='Benchmark')
         ax_main.set_yscale('log')

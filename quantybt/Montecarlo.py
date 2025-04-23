@@ -7,9 +7,9 @@ from matplotlib.figure import Figure
 class MonteCarloBootstrapping:
     _PERIODS = {
         '1m': 525600, '5m': 105120, '15m': 35040, '30m': 17520,
-        '1h': 8760,   '2h': 4380,   '4h': 2190,  '1d': 365,
-        '1w': 52
-    }
+        '1h': 8760,   '2h': 4380,   '4h': 2190,  
+        '1d': 365, '1w': 52
+        }
 
     def __init__(
         self,
