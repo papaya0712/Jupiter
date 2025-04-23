@@ -3,11 +3,10 @@ import numpy as np
 import vectorbt as vbt
 import plotly.graph_objects as go
 
-from hyperopt import Trials, tpe, hp, fmin, space_eval, STATUS_FAIL, STATUS_OK
-from typing import Dict, Tuple
+from hyperopt import space_eval, STATUS_OK
+from quantybt.plots import _PlotTrainTestSplit
 from quantybt.analyzer import Analyzer
 from quantybt.stats import Stats
-from quantybt.plots import _PlotTrainTestSplit
 
 class TrainTestOptimizer:
     def __init__(
