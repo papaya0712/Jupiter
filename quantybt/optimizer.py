@@ -9,7 +9,7 @@ from quantybt.analyzer import Analyzer
 from quantybt.stats import Stats
 from quantybt.plots import _PlotTrainTestSplit
 
-class Optimizer:
+class TrainTestOptimizer:
     def __init__(
         self,
         analyzer,
@@ -150,7 +150,7 @@ class Optimizer:
             'trial_metrics': self.trial_metrics
         }
     
-    def plot_backtest(self,title: str = 'In-Sample vs Out-of-Sample Performance',
+    def plot(self,title: str = 'In-Sample vs Out-of-Sample Performance',
                       export_html: bool = False,
                       export_image: bool = False,
                       file_name: str = 'train_test_plot[QuantyBT]') -> go.Figure:

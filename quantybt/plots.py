@@ -380,7 +380,7 @@ class _PlotBootstrapping:
         ax_main.grid(True, linestyle=':', linewidth=0.5, alpha=0.6)
 
         metrics = ['AnnVol', 'Sharpe', 'MaxDrawdown']
-        titles  = ['Annualisierte Volatilität', 'Sharpe Ratio', 'Max Drawdown']
+        titles  = ['Annual Volatilty', 'Sharpe Ratio', 'Max Drawdown']
         for i, (m, title) in enumerate(zip(metrics, titles)):
             ax = fig.add_subplot(gs[1, i])
             sb.histplot(stats_df[m], bins=25, kde=True, edgecolor=grid, line_kws={'linewidth':0.5}, ax=ax)
