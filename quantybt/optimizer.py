@@ -129,12 +129,18 @@ class TrainTestOptimizer:
         df_oos = self.strategy.preprocess_data(df_oos, self.best_params)
         sig_oos = self.strategy.generate_signals(df_oos, **self.best_params)
         self.test_pf = vbt.Portfolio.from_signals(
-            close=df_oos[self.ss.price_col],
-            entries=sig_oos.get('entries'), exits=sig_oos.get('exits'),
-            short_entries=sig_oos.get('short_entries'), short_exits=sig_oos.get('short_exits'),
-            freq=self.timeframe, init_cash=self.init_cash,
-            fees=self.fees, slippage=self.slippage,
-            direction='longonly', sl_stop=self.best_params.get('sl_pct'), tp_stop=self.best_params.get('tp_pct')
+            close=df_oos[self.s.price_col],
+            entries=sig_oos.get('entries'), 
+            exits=sig_oos.get('exits'),
+            short_entries=sig_oos.get('short_entries'), 
+            short_exits=sig_oos.get('short_exits'),
+            freq=self.timeframe, 
+            init_cash=self.init_cash,
+            fees=self.fees, 
+            slippage=self.slippage,
+            direction='longonly', 
+            sl_stop=self.best_params.get('sl_pct'), 
+            tp_stop=self.best_params.get('tp_pct')
         )
 
         # Summaries
@@ -161,3 +167,5 @@ class TrainTestOptimizer:
             export_image=export_image,
             file_name=file_name
             )
+    
+    
