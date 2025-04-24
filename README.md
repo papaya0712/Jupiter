@@ -21,13 +21,12 @@
 - **Walk-Forward Optimization (WFO)** with automated plotting and summary reports  
 - **Sensitivity Analysis** for identifying and mitigating overfitting  
 - **Portfolio Optimization** with advanced methods (HRP, CVaR, Maximum Entropy, ...)  
-- **Live Execution via CCXT**: Seamless end-to-end workflow from strategy design → testing → deployment.
 
 ---
 
-### Examples
-
-## Defining your strategy
+### Quick guide
+for more detailed explanations, tutorials coming soon
+## 1st. Define your strategy
 
 ```python
 import pandas as pd
@@ -105,5 +104,3 @@ pip install quantybt
 ```
 
 ---
-
-more tutorials coming soon i hope
