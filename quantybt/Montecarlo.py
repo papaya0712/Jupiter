@@ -91,6 +91,16 @@ class MonteCarloBootstrapping:
                 'MaxDrawdown':     max_dd[i]
             })
         return out
+    
+    def _analyze_series(self, ret: pd.Series) -> Dict[str, float]:
+        if len(ret) == 0:
+            return dict.fromkeys(
+                ['CumulativeReturn', 'AnnVol', 'Sharpe', 'MaxDrawdown'], np.nan
+            )
+
+        arr = np.asarray(ret, dtype=np.float64)[np.newaxis, :]
+        return self._analyze_simulations(arr)[0]
+
 
     def mc_with_replacement(self) -> Dict[str, Any]:
         np.random.seed(self.random_seed)

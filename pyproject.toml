@@ -1,6 +1,6 @@
 [project]
 name = "quantybt"
-version = "0.1.9.7"
+version = "0.1.9.8"
 description = "lightweight backtesting framework with in-built advanced statistical backtesting methods and custom models"
 readme = "README.md"
 requires-python = ">=3.8"
