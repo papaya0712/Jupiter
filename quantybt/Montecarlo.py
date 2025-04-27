@@ -1,42 +1,42 @@
-# quantybt/montecarlo.py
-# quantybt/montecarlo.py
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Any, Dict, List
 
 try:
     from numba import njit
+    print(">>> Successfully imported numba.")
 
     @njit(cache=True, fastmath=True)
     def _cumprod_numba(a: np.ndarray) -> np.ndarray:
         out = np.empty_like(a)
         for i in range(a.shape[0]):
-            acc = 1.0
+            acc = np.float32(1.0)
             for j in range(a.shape[1]):
                 acc *= a[i, j]
                 out[i, j] = acc
         return out
-except Exception: 
-    def _cumprod_numba(a: np.ndarray) -> np.ndarray:  
-        return np.cumprod(a, axis=1)
-# --------------------------------------------------------------------------- #
 
+except Exception as e:
+    print(">>> Numba not found. Error:", e)
+
+    def _cumprod_numba(a: np.ndarray) -> np.ndarray:
+        return np.cumprod(a, axis=1)
+    
 class MonteCarloBootstrapping:
+    """
+    Recommended: Use at least 2,000-5,000 simulations for robust statistical results. 
+    For extreme risk estimation, such as 1%-VaR or severe tail events, consider 10,000+ simulations.
+    
+    Warning: Standard bootstrapping methods can destroy the autocorrelation structure in your return series.
+
+    Incoming: stationary Bootstrapping
+    """
     _PERIODS = {
         '1m': 525_600, '5m': 105_120, '15m': 35_040, '30m': 17_520,
-        '1h': 8_760,   '2h': 4_380,   '4h': 2_190,
-        '1d': 365, '1w': 52
+        '1h': 8_760, '2h': 4_380, '4h': 2_190, '1d': 365, '1w': 52
     }
 
-    def __init__(
-        self,
-        analyzer: Optional[Any] = None,
-        *,
-        timeframe: str = '1d',
-        ret_series: Optional[pd.Series] = None,
-        n_sims: int = 250,
-        random_seed: int = 69
-        ):
+    def __init__(self, analyzer=None, *, timeframe='1d', ret_series=None, n_sims=1000, random_seed=69):
         if analyzer is not None:
             self.pf = analyzer.pf
             self.init_cash = analyzer.init_cash
@@ -60,63 +60,70 @@ class MonteCarloBootstrapping:
     def _convert_frequency(self, ret: pd.Series) -> pd.Series:
         rs = ret.copy()
         rs.index = pd.to_datetime(rs.index)
-
         if self.timeframe.endswith(('m', 'h')) or self.timeframe == '1d':
             return rs
         if self.timeframe == '1w':
             return rs.resample('W').apply(lambda x: (1 + x).prod() - 1)
         return rs.resample('M').apply(lambda x: (1 + x).prod() - 1)
 
-    def _analyze_simulations(
-        self, samples: np.ndarray
-    ) -> List[Dict[str, float]]:
-     
+    def _analyze_simulations(self, samples: np.ndarray):
         ann_factor = self.ann_factor
         init_cash = self.init_cash
         cumprod = _cumprod_numba(1.0 + samples) * init_cash
         cum_ret = (1.0 + samples).prod(axis=1) - 1.0
-        std = samples.std(axis=1, ddof=1)
-        ann_vol = std * np.sqrt(ann_factor)
+        
+        # sharpe
         mean_ret = samples.mean(axis=1)
+        std = samples.std(axis=1, ddof=1)
         sharpe = np.where(std > 0, mean_ret / std * np.sqrt(ann_factor), np.nan)
+        
+        # sortino
+        excess = samples 
+        mean_exc = np.mean(excess, axis=1)
+        rms_down = np.sqrt(np.mean(np.square(np.minimum(excess, 0)), axis=1))
+        mean_exc_ann = mean_exc * ann_factor
+        downside_ann = rms_down * np.sqrt(ann_factor)
+        sortino = np.where(downside_ann > 0, mean_exc_ann / downside_ann, np.nan)
+
+        #max dd
         rolling_max = np.maximum.accumulate(cumprod, axis=1)
+        rolling_max = np.where(rolling_max == 0, 1e-9, rolling_max)
         max_dd = ((cumprod - rolling_max) / rolling_max).min(axis=1)
+
+        # calmar
+        years = np.clip(samples.shape[1] / ann_factor, 1e-6, None)
+        cagr = np.where(cumprod[:, -1] > 0, (cumprod[:, -1] / init_cash) ** (1 / years) - 1, np.nan)
+        calmar = np.where(max_dd < 0, cagr / abs(max_dd), np.nan)
 
         out = []
         for i in range(samples.shape[0]):
             out.append({
                 'CumulativeReturn': cum_ret[i],
-                'AnnVol':          ann_vol[i],
-                'Sharpe':          sharpe[i],
-                'MaxDrawdown':     max_dd[i]
+                'Sharpe': sharpe[i],
+                'Sortino': sortino[i],
+                'Calmar': calmar[i],
+                'MaxDrawdown': max_dd[i]
             })
         return out
-    
-    def _analyze_series(self, ret: pd.Series) -> Dict[str, float]:
-        if len(ret) == 0:
-            return dict.fromkeys(
-                ['CumulativeReturn', 'AnnVol', 'Sharpe', 'MaxDrawdown'], np.nan
-            )
 
+    def _analyze_series(self, ret: pd.Series):
+        if len(ret) == 0:
+            return dict.fromkeys(['CumulativeReturn', 'Sharpe', 'Sortino', 'Calmar', 'MaxDrawdown'], np.nan)
         arr = np.asarray(ret, dtype=np.float64)[np.newaxis, :]
         return self._analyze_simulations(arr)[0]
 
-
-    def mc_with_replacement(self) -> Dict[str, Any]:
+    def mc_with_replacement(self):
         np.random.seed(self.random_seed)
-
         returns = self._convert_frequency(self.ret_series)
-        arr = returns.values.astype(np.float64)
+        arr = returns.values.astype(np.float32)
         n_obs = arr.size
 
-     
         idx = np.random.randint(0, n_obs, size=(self.n_sims, n_obs))
         samples = arr[idx]
 
         equity = _cumprod_numba(1.0 + samples) * self.init_cash
-
         sim_equity = pd.DataFrame(
-            equity.T,               
+            equity.T,
             index=returns.index,
             columns=[f"Sim_{i}" for i in range(self.n_sims)]
         )
@@ -125,12 +132,12 @@ class MonteCarloBootstrapping:
         orig_stats = self._analyze_simulations(arr[np.newaxis, :])[0]
 
         return {
-            'original_stats':          orig_stats,
-            'simulated_stats':         sim_stats,
+            'original_stats': orig_stats,
+            'simulated_stats': sim_stats,
             'simulated_equity_curves': sim_equity
         }
 
-    def benchmark_equity(self) -> pd.Series:
+    def benchmark_equity(self):
         if self.pf is not None and hasattr(self.pf, 'benchmark_value'):
             bench = self.pf.benchmark_value()
         else:
@@ -139,12 +146,20 @@ class MonteCarloBootstrapping:
         bench.index = pd.to_datetime(bench.index)
         return bench
 
-    def results(self) -> pd.DataFrame:
+    def results(self, summarized=False):
         res = self.mc_with_replacement()
         df = pd.DataFrame(res['simulated_stats'])
         df.loc['Original'] = res['original_stats']
+        if summarized:
+            desc = df.describe()
+            desc = desc.drop(index=['count', 'mean'])
+            return desc
         return df
-
-    def plot(self):
+    
+    def plot_histograms(self, mc_results: pd.DataFrame = None):
+        """ shows 4 histograms (sharpe, sortino, calmar, max_dd)"""
         from quantybt.plots import _PlotBootstrapping
-        return _PlotBootstrapping(self).plot()
+        if mc_results is None:
+            mc_data = self.mc_with_replacement()
+            mc_results = pd.DataFrame(mc_data['simulated_stats'])
+        return _PlotBootstrapping(self).plot_histograms(mc_results)

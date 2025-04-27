@@ -2,13 +2,20 @@ import pandas as pd
 import numpy as np
 import vectorbt as vbt
 import plotly.graph_objects as go
+import logging  
 
 from hyperopt import space_eval, STATUS_OK
 from quantybt.plots import _PlotTrainTestSplit
 from quantybt.analyzer import Analyzer
 from quantybt.stats import Stats
 
+logger = logging.getLogger(__name__)  
+
 class TrainTestOptimizer:
+    """
+    Simple method to reduce overfitting: split your data into In-Sample (for training) 
+    and Out-of-Sample (for testing on unseen data).
+    """
     def __init__(
         self,
         analyzer,
@@ -57,6 +64,8 @@ class TrainTestOptimizer:
 
     def _objective(self, params: dict) -> dict:
         try:
+            seed = int(abs(hash(frozenset(params.items())))) % 2**32  
+            np.random.seed(seed)
             # In-Sample
             df_is = self.analyzer.train_df.copy()
             df_is = self.strategy.preprocess_data(df_is, params)
@@ -85,12 +94,16 @@ class TrainTestOptimizer:
             )
             val_oos = self._get_metric_value(pf_oos)
 
-            # Store metrics
-            self.trial_metrics.append((val_is, val_oos))
-
-            return {"loss": -val_is, "status": STATUS_OK}
-        except Exception:
-            return {"loss": np.inf, "status": STATUS_OK}
+            # loss function 
+            penalty = 0.5 * abs(val_is - val_oos) / (np.std(self.trial_metrics) + 1e-6)  
+            loss = -val_is + penalty  
+            
+            self.trial_metrics.append((val_is, val_oos))  
+            return {"loss": loss, "status": STATUS_OK, "params": params} 
+        
+        except Exception as e:  
+          logger.error(f"Error with params {params}: {e}", exc_info=True)  
+          return {"loss": np.inf, "status": STATUS_OK}  
 
     def optimize(self) -> tuple:
         from hyperopt import fmin, tpe, Trials
@@ -155,17 +168,11 @@ class TrainTestOptimizer:
             'trial_metrics': self.trial_metrics
         }
     
-    def plot(self,title: str = 'In-Sample vs Out-of-Sample Performance',
-                      export_html: bool = False,
-                      export_image: bool = False,
-                      file_name: str = 'train_test_plot[QuantyBT]') -> go.Figure:
+    def plot(self,
+             title: str = 'In-Sample vs Out-of-Sample Performance',
+             export_html: bool = False,
+             export_image: bool = False,
+             file_name: str = 'train_test_plot[QuantyBT]') -> go.Figure:
         
         plotter = _PlotTrainTestSplit(self)
-        return plotter.plot_oos(
-            title=title,
-            export_html=export_html,
-            export_image=export_image,
-            file_name=file_name
-            )
-    
-    
+        return plotter.plot_oos(title=title, export_html=export_html, export_image=export_image, file_name=file_name)

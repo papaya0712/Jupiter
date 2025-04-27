@@ -1,10 +1,8 @@
 import pandas as pd
 import numpy as np
 
+import holoviews as hv
 import plotly.graph_objects as go
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import seaborn as sb
 
 from typing import Tuple, TYPE_CHECKING
 from plotly.subplots import make_subplots
@@ -321,7 +319,7 @@ class _PlotBootstrapping:
     def __init__(self, mc):
         self.mc = mc
 
-    def _align_series(self, sim_eq: pd.DataFrame, bench_eq: pd.Series) -> Tuple[pd.DataFrame, pd.Series]:
+    def _align_series(self, sim_eq: pd.DataFrame, bench_eq: pd.Series):
         sim_eq.index = pd.to_datetime(sim_eq.index)
         bench_eq.index = pd.to_datetime(bench_eq.index)
         start = max(sim_eq.index.min(), bench_eq.index.min())
@@ -330,67 +328,92 @@ class _PlotBootstrapping:
         idx = sim_eq.index.union(bench_eq.index)
         return sim_eq.reindex(idx).ffill(), bench_eq.reindex(idx).ffill()
 
-    def plot(self) -> plt.Figure:
-        data = self.mc.mc_with_replacement()
-        sim_eq, bench_eq = self._align_series(
-            data['simulated_equity_curves'],
-            self.mc.benchmark_equity())
-        
-        stats_df = pd.DataFrame(data['simulated_stats'])
-        try:
-            bench_returns = self.mc.pf.benchmark_returns()
-        except Exception:
-            bench_series = self.mc.benchmark_equity().pct_change().dropna()
-            bench_returns = bench_series
-        bench_freq = self.mc._convert_frequency(bench_returns)
-        bench_stats = self.mc._analyze_series(bench_freq)
+    def plot_histograms(self, mc_results: pd.DataFrame = None):
+        hv.extension('bokeh')
+        hv.renderer('bokeh').theme = 'carbon'
 
-        plt.style.use('dark_background')
-        sb.set_theme()
-        bg = '#121212'; grid = '#2E2E2E'; text = '#E0E0E0'
-        sim_col, mean_col, bench_col = 'skyblue', 'green', 'red'
-        plt.rcParams.update({
-            'figure.facecolor': bg,
-            'axes.facecolor': bg,
-            'axes.edgecolor': grid,
-            'xtick.color': text,
-            'ytick.color': text,
-            'grid.color': grid,
-            'text.color': text,
-        })
+        if mc_results is None:
+            data = self.mc.mc_with_replacement()
+            mc_results = pd.DataFrame(data['simulated_stats'])
 
-        fig = plt.figure(figsize=(18, 12))
-        gs = fig.add_gridspec(2, 3, height_ratios=[2, 1], hspace=0.3)
+        sharpe_vals = mc_results['Sharpe']
+        sortino_vals = mc_results['Sortino']
+        calmar_vals = mc_results['Calmar']
+        maxdd_vals = mc_results['MaxDrawdown']
 
-        ax_main = fig.add_subplot(gs[0, :])
-        for col in sim_eq.columns:
-            ax_main.plot(sim_eq.index, sim_eq[col], color=sim_col, alpha=0.02, linewidth=0.5)
-        lo = sim_eq.quantile(0.05, axis=1)
-        hi = sim_eq.quantile(0.95, axis=1)
-        mean = sim_eq.mean(axis=1)
-        ax_main.fill_between(sim_eq.index, lo, hi, color=sim_col, alpha=0.2, label='90% Confidence')
-        ax_main.plot(sim_eq.index, mean, color=mean_col, linewidth=2, label='Mean')
-        ax_main.plot(bench_eq.index, bench_eq.values, color=bench_col, linewidth=0.75, label='Benchmark')
-        ax_main.set_yscale('log')
-        ax_main.xaxis.set_major_locator(mdates.AutoDateLocator())
-        ax_main.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-        fig.autofmt_xdate(rotation=45)
-        ax_main.set_ylabel('Equity (log Skala)')
-        ax_main.legend(loc='upper left')
-        ax_main.grid(True, linestyle=':', linewidth=0.5, alpha=0.6)
+        sharpe_q5, sharpe_q50, sharpe_q95 = np.percentile(sharpe_vals, [5, 50, 95])
+        sortino_q5, sortino_q50, sortino_q95 = np.percentile(sortino_vals, [5, 50, 95])
+        calmar_q5, calmar_q50, calmar_q95 = np.percentile(calmar_vals, [5, 50, 95])
+        maxdd_q5, maxdd_q50, maxdd_q95 = np.percentile(maxdd_vals, [5, 50, 95])
 
-        metrics = ['AnnVol', 'Sharpe', 'MaxDrawdown']
-        titles  = ['Annual Volatilty', 'Sharpe Ratio', 'Max Drawdown']
-        for i, (m, title) in enumerate(zip(metrics, titles)):
-            ax = fig.add_subplot(gs[1, i])
-            sb.histplot(stats_df[m], bins=25, kde=True, edgecolor=grid, line_kws={'linewidth':0.5}, ax=ax)
+        bench_ret = self.mc.pf.benchmark_returns()
+        bench_stats = self.mc._analyze_series(bench_ret)
 
-            bench_val = bench_stats[m]
-            ax.axvline(bench_val, color=bench_col, linewidth=1.25)
-            ax.set_title(title)
-            ax.grid(True, linestyle=':', linewidth=0.5, alpha=0.4)
-            ax.tick_params(colors=text)
-            for spine in ax.spines.values():
-                spine.set_visible(False)
+        bench_sharpe = bench_stats['Sharpe']
+        bench_sortino = bench_stats['Sortino']
+        bench_calmar = bench_stats['Calmar']
+        bench_maxdd = bench_stats['MaxDrawdown']
 
-        return fig
+        color_q5 = "green"
+        color_q50 = "deepskyblue"
+        color_q95 = "red"
+        color_bench = "purple"
+        bins = 50
+        plot_width = 600
+        plot_height = 400
+
+        hist_opts = dict(fill_color="lightgrey", bgcolor=None, gridstyle={'grid_line_alpha': 0.3}, width=plot_width, height=plot_height, show_legend=False)
+
+        sharpe_vals = sharpe_vals[np.isfinite(sharpe_vals)]
+        sortino_vals = sortino_vals[np.isfinite(sortino_vals)]
+        calmar_vals = calmar_vals[np.isfinite(calmar_vals)]
+        maxdd_vals = maxdd_vals[np.isfinite(maxdd_vals)]
+
+        sharpe_hist_values, sharpe_bin_edges = np.histogram(sharpe_vals, bins=bins)
+        sortino_hist_values, sortino_bin_edges = np.histogram(sortino_vals, bins=bins)
+        calmar_hist_values, calmar_bin_edges = np.histogram(calmar_vals, bins=bins)
+        maxdd_hist_values, maxdd_bin_edges = np.histogram(maxdd_vals, bins=bins)
+
+
+        hist_sharpe = hv.Histogram((sharpe_hist_values, sharpe_bin_edges)).opts(title="Sharpe Distribution", xlabel="Sharpe", ylabel="Frequency", **hist_opts)
+        hist_sortino = hv.Histogram((sortino_hist_values, sortino_bin_edges)).opts(title="Sortino Distribution", xlabel="Sortino", ylabel="Frequency", **hist_opts)
+        hist_calmar = hv.Histogram((calmar_hist_values, calmar_bin_edges)).opts(title="Calmar Distribution", xlabel="Calmar", ylabel="Frequency", **hist_opts)
+        hist_maxdd = hv.Histogram((maxdd_hist_values, maxdd_bin_edges)).opts(title="Max Drawdown Distribution", xlabel="MaxDrawdown", ylabel="Frequency", **hist_opts)
+
+        max_y_sharpe = sharpe_hist_values.max()
+        max_y_sortino = sortino_hist_values.max()
+        max_y_calmar = calmar_hist_values.max()
+        max_y_maxdd = maxdd_hist_values.max()
+
+        spikes_sharpe = (
+            hv.Spikes(pd.DataFrame({'Sharpe': [sharpe_q5], 'y': [max_y_sharpe]}), kdims='Sharpe', vdims='y', label='5th %ile').opts(color=color_q5, line_dash="dashed", line_width=2) *
+            hv.Spikes(pd.DataFrame({'Sharpe': [sharpe_q50], 'y': [max_y_sharpe]}), kdims='Sharpe', vdims='y', label='50th %ile').opts(color=color_q50, line_dash="solid", line_width=2) *
+            hv.Spikes(pd.DataFrame({'Sharpe': [sharpe_q95], 'y': [max_y_sharpe]}), kdims='Sharpe', vdims='y', label='95th %ile').opts(color=color_q95, line_dash="dashed", line_width=2))
+
+        spikes_sortino = (
+            hv.Spikes(pd.DataFrame({'Sortino': [sortino_q5], 'y': [max_y_sortino]}), kdims='Sortino', vdims='y', label='5th %ile').opts(color=color_q5, line_dash="dashed", line_width=2) *
+            hv.Spikes(pd.DataFrame({'Sortino': [sortino_q50], 'y': [max_y_sortino]}), kdims='Sortino', vdims='y', label='50th %ile').opts(color=color_q50, line_dash="solid", line_width=2) *
+            hv.Spikes(pd.DataFrame({'Sortino': [sortino_q95], 'y': [max_y_sortino]}), kdims='Sortino', vdims='y', label='95th %ile').opts(color=color_q95, line_dash="dashed", line_width=2))
+
+        spikes_calmar = (
+            hv.Spikes(pd.DataFrame({'Calmar': [calmar_q5], 'y': [max_y_calmar]}), kdims='Calmar', vdims='y', label='5th %ile').opts(color=color_q5, line_dash="dashed", line_width=2) *
+            hv.Spikes(pd.DataFrame({'Calmar': [calmar_q50], 'y': [max_y_calmar]}), kdims='Calmar', vdims='y', label='50th %ile').opts(color=color_q50, line_dash="solid", line_width=2) *
+            hv.Spikes(pd.DataFrame({'Calmar': [calmar_q95], 'y': [max_y_calmar]}), kdims='Calmar', vdims='y', label='95th %ile').opts(color=color_q95, line_dash="dashed", line_width=2))
+
+        spikes_maxdd = (
+            hv.Spikes(pd.DataFrame({'MaxDrawdown': [maxdd_q5], 'y': [max_y_maxdd]}), kdims='MaxDrawdown', vdims='y', label='5th %ile').opts(color=color_q5, line_dash="dashed", line_width=2) *
+            hv.Spikes(pd.DataFrame({'MaxDrawdown': [maxdd_q50], 'y': [max_y_maxdd]}), kdims='MaxDrawdown', vdims='y', label='50th %ile').opts(color=color_q50, line_dash="solid", line_width=2) *
+            hv.Spikes(pd.DataFrame({'MaxDrawdown': [maxdd_q95], 'y': [max_y_maxdd]}), kdims='MaxDrawdown', vdims='y', label='95th %ile').opts(color=color_q95, line_dash="dashed", line_width=2))
+
+        bench_sh_spike = hv.Spikes(pd.DataFrame({'Sharpe': [bench_sharpe], 'y': [max_y_sharpe]}), kdims='Sharpe', vdims='y', label='Benchmark').opts(color=color_bench, line_dash="solid", line_width=2)
+        bench_so_spike = hv.Spikes(pd.DataFrame({'Sortino': [bench_sortino], 'y': [max_y_sortino]}), kdims='Sortino', vdims='y', label='Benchmark').opts(color=color_bench, line_dash="solid", line_width=2)
+        bench_ca_spike = hv.Spikes(pd.DataFrame({'Calmar': [bench_calmar], 'y': [max_y_calmar]}), kdims='Calmar', vdims='y', label='Benchmark').opts(color=color_bench, line_dash="solid", line_width=2)
+        bench_dd_spike = hv.Spikes(pd.DataFrame({'MaxDrawdown': [bench_maxdd], 'y': [max_y_maxdd]}), kdims='MaxDrawdown', vdims='y', label='Benchmark').opts(color=color_bench, line_dash="solid", line_width=2)
+
+        plot_sharpe = (hist_sharpe * spikes_sharpe * bench_sh_spike).opts(show_legend=True, legend_position='top_right')
+        plot_sortino = (hist_sortino * spikes_sortino * bench_so_spike).opts(show_legend=True, legend_position='top_right')
+        plot_calmar = (hist_calmar * spikes_calmar * bench_ca_spike).opts(show_legend=True, legend_position='top_right')
+        plot_maxdd = (hist_maxdd * spikes_maxdd * bench_dd_spike).opts(show_legend=True, legend_position='top_right')
+
+        final_plot = (plot_sharpe + plot_sortino + plot_calmar + plot_maxdd).opts(shared_axes=False)
+        return final_plot
