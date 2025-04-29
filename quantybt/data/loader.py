@@ -3,6 +3,29 @@ import pandas as pd
 from datetime import datetime
 
 class Loader:
+    """
+    Loader for fetching historical OHLCV data from Binance Futures.
+
+    Usage:
+    ```python
+    from datetime import datetime
+    loader = Loader(
+        symbols=["BTC/USDT", "ETH/USDT"],
+        timeframe="1h",
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 6, 1),
+        save_directory="./data"
+    )
+    loader.download_data_for_symbols()
+    ```
+    This will download the data and save each symbol's OHLCV history as a Feather file in the specified directory.
+
+    !!! Warning:
+    In some countries, access to ccxt's Binance API may be restricted.
+    If you encounter issues, manually download the Binance data yourself,
+    or modify this script to use a different exchange via ccxt.
+    """
+
     def __init__(self,
                  symbols: list,
                  timeframe: str = "1d",

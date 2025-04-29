@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import logging  
 
 from hyperopt import space_eval, STATUS_OK
-from quantybt.plots import _PlotTrainTestSplit
+from quantybt.plots import _PlotTrainTestSplit, _PlotGeneralization
 from quantybt.analyzer import Analyzer
 from quantybt.stats import Stats
 
@@ -15,6 +15,10 @@ class TrainTestOptimizer:
     """
     Simple method to reduce overfitting: split your data into In-Sample (for training) 
     and Out-of-Sample (for testing on unseen data).
+
+    Plot Functions:
+     - plot_train_test() shows IS vs OOS equity curve & drawdowncurves and a summary table
+     - plot_generalization() shows IS vs OOS perfromance for every trial in a scatterplot with linear Regression as generalization metrics
     """
     def __init__(
         self,
@@ -168,7 +172,7 @@ class TrainTestOptimizer:
             'trial_metrics': self.trial_metrics
         }
     
-    def plot(self,
+    def plot_train_test(self,
              title: str = 'In-Sample vs Out-of-Sample Performance',
              export_html: bool = False,
              export_image: bool = False,
@@ -176,3 +180,7 @@ class TrainTestOptimizer:
         
         plotter = _PlotTrainTestSplit(self)
         return plotter.plot_oos(title=title, export_html=export_html, export_image=export_image, file_name=file_name)
+    
+    def plot_generalization(self, title: str = "IS vs OOS Performance"):
+     plotter = _PlotGeneralization(self)
+     return plotter.plot_generalization(title=title)

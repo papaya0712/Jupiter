@@ -3,46 +3,93 @@ import numpy as np
 from numpy.linalg import LinAlgError, cholesky, eigvals, inv
 import math
 
-# full implemented UKF, ideal for non linear systems
+# -----------------------------------------------------
+class SimpleKalmanFilter:
+    def __init__(self, Q, R, m0=0, P0=1):
+        self.Q, self.R = Q, R
+        self.m, self.P = m0, P0
+
+    def update(self, y):
+        m_pred = self.m
+        P_pred = self.P + self.Q
+        K = P_pred / (P_pred + self.R)
+        self.m = m_pred + K * (y - m_pred)
+        self.P = (1 - K) * P_pred
+        return 1 - 0.5 * (1 + math.erf(-self.m / np.sqrt(2 * self.P)))
+    
+# -----------------------------------------------------
 class UnscentedKalmanFilter:
-    def __init__(self, f, h, Q, R, initial_state, initial_covariance, alpha=1e-3, beta=2, kappa=0):
-        """
-        Unscented Kalman Filter (UKF) Implementation.
+     """
+     Full Unscented Kalman Filter (UKF) Implementation.
 
-        Parameters:
-            f (callable): State transition function (x_prev -> x_pred).
-            h (callable): Measurement function (x -> z).
-            Q (np.ndarray): Process noise covariance matrix (n x n).
-            R (np.ndarray): Measurement noise covariance matrix (m x m).
-            initial_state (np.ndarray): Initial state estimate (n-dimensional).
-            initial_covariance (np.ndarray): Initial covariance estimate (n x n).
-            alpha (float): UKF scaling parameter (default: 1e-3).
-            beta (float): UKF parameter for distribution type (default: 2).
-            kappa (float): UKF secondary scaling parameter (default: 0).
-        """
-        self.f = f
-        self.h = h
-        self.Q = Q.astype(np.float64)
-        self.R = R.astype(np.float64)
-        self.state = initial_state.astype(np.float64)
-        self.covariance = initial_covariance.astype(np.float64)
-        self.n = len(initial_state)
-        self.alpha = alpha
-        self.beta = beta
-        self.kappa = kappa
-        self.lmbda = alpha**2 * (self.n + kappa) - self.n
-        self.gamma = np.sqrt(self.n + self.lmbda)
+     Parameters:
+        f (callable): State transition function (x_prev -> x_pred).
+        h (callable): Measurement function (x -> z).
+        Q (np.ndarray): Process noise covariance matrix (n x n).
+        R (np.ndarray): Measurement noise covariance matrix (m x m).
+        initial_state (np.ndarray): Initial state estimate (n-dimensional).
+        initial_covariance (np.ndarray): Initial covariance estimate (n x n).
+        alpha (float): UKF scaling parameter (default: 1e-3).
+        beta (float): UKF parameter for distribution type (default: 2).
+        kappa (float): UKF secondary scaling parameter (default: 0).
 
-    @staticmethod
-    def _is_positive_definite(matrix):
-        try:
+     Usage:
+     ```python
+     import numpy as np
+
+     def f(x):
+        # Example transition function (identity)
+        return x
+
+     def h(x):
+        # Example measurement function (identity)
+        return x
+
+     Q = np.eye(2) * 0.01  # Small process noise
+     R = np.eye(2) * 0.1   # Measurement noise
+     initial_state = np.array([0, 0])
+     initial_covariance = np.eye(2)
+
+     ukf = UnscentedKalmanFilter(f, h, Q, R, initial_state, initial_covariance)
+     kalman_probs = []
+     
+     for r, vola in zip(df['log_return'], df['realized_vola']):
+        ukf.predict()
+        ukf.update(np.array([r, vola]))
+        mu, var = ukf.state[0], ukf.cov[0,0]
+        prob_up = 1 - 0.5*(1 + erf(-mu / np.sqrt(2*var)))
+        kalman_probs.append(prob_up)
+        
+     df['kalman_prob']      = kalman_probs
+     df['kalman_regime_up'] = df['kalman_prob'] > 0.505  
+     print(df[['timestamp','close','log_return','realized_vola','kalman_prob','kalman_regime_up']].tail())
+     ```
+     """
+
+     def __init__(self, f, h, Q, R, initial_state, initial_covariance, alpha=1e-3, beta=2, kappa=0):
+         self.f = f
+         self.h = h
+         self.Q = Q.astype(np.float64)
+         self.R = R.astype(np.float64)
+         self.state = initial_state.astype(np.float64)
+         self.covariance = initial_covariance.astype(np.float64)
+         self.n = len(initial_state)
+         self.alpha = alpha
+         self.beta = beta
+         self.kappa = kappa
+         self.lmbda = alpha**2 * (self.n + kappa) - self.n
+         self.gamma = np.sqrt(self.n + self.lmbda)
+
+     @staticmethod
+     def _is_positive_definite(matrix):
+         try:
             cholesky(matrix)
             return True
-        except LinAlgError:
+         except LinAlgError:
             return False
 
-    @classmethod
-    def _nearest_positive_definite(cls, matrix):
+     @classmethod
+     def _nearest_positive_definite(cls, matrix):
         B = (matrix + matrix.T) / 2
         _, s, V = np.linalg.svd(B)
         H = V.T @ np.diag(s) @ V
@@ -65,7 +112,7 @@ class UnscentedKalmanFilter:
 
         return A3
 
-    def sigma_points(self):
+     def sigma_points(self):
         """Generate sigma points using the Unscented Transform."""
         sigma_points = np.zeros((2 * self.n + 1, self.n))
         sigma_points[0] = self.state
@@ -82,7 +129,7 @@ class UnscentedKalmanFilter:
 
         return sigma_points
 
-    def predict(self):
+     def predict(self):
         """prediction step."""
         sigma_points = self.sigma_points()
         predicted_points = np.array([self.f(sp) for sp in sigma_points])
@@ -94,7 +141,7 @@ class UnscentedKalmanFilter:
         if not self._is_positive_definite(self.covariance):
             self.covariance = self._nearest_positive_definite(self.covariance)
 
-    def update(self, measurement):
+     def update(self, measurement):
         """update step."""
         sigma_points = self.sigma_points()
         pred_measurements = np.array([self.h(sp) for sp in sigma_points])
@@ -122,27 +169,12 @@ class UnscentedKalmanFilter:
         if not self._is_positive_definite(self.covariance):
             self.covariance = self._nearest_positive_definite(self.covariance)
 
-    def _weights_mean(self):
+     def _weights_mean(self):
         weights = np.full(2 * self.n + 1, 1 / (2 * (self.n + self.lmbda)))
         weights[0] = self.lmbda / (self.n + self.lmbda)
         return weights
 
-    def _weights_cov(self):
+     def _weights_cov(self):
         weights = self._weights_mean().copy()
         weights[0] += 1 - self.alpha**2 + self.beta
         return weights
-
-# simple Kalmanfilter with linear-gaussian state model
-class SimpleKalmanFilter:
-    def __init__(self, Q, R, m0=0, P0=1):
-        self.Q, self.R = Q, R
-        self.m, self.P = m0, P0
-
-    def update(self, y):
-        m_pred = self.m
-        P_pred = self.P + self.Q
-        K = P_pred / (P_pred + self.R)
-        self.m = m_pred + K * (y - m_pred)
-        self.P = (1 - K) * P_pred
-        return 1 - 0.5 * (1 + math.erf(-self.m / np.sqrt(2 * self.P)))
-    

@@ -310,6 +310,66 @@ class _PlotTrainTestSplit:
                 pass
 
         return fig
+
+class _PlotGeneralization:
+    def __init__(self, optimizer):
+        self.optimizer = optimizer
+
+    def plot_generalization(self, title: str = "IS vs OOS Performance") -> hv.Layout:
+        hv.extension('bokeh')
+        hv.renderer('bokeh').theme = 'carbon'
+        
+        if not self.optimizer.trial_metrics:
+            raise ValueError("No trial metrics found. Run optimizer.optimize() first.")
+
+        trial_metrics = np.array(self.optimizer.trial_metrics)
+        unique_metrics = np.unique(trial_metrics, axis=0)
+        is_scores = unique_metrics[:, 0]
+        oos_scores = unique_metrics[:, 1]
+
+        coeffs = np.polyfit(is_scores, oos_scores, deg=1)
+        fit_line = np.poly1d(coeffs)
+        x_fit = np.linspace(min(is_scores.min(), oos_scores.min()), max(is_scores.max(), oos_scores.max()), 100)
+        y_fit = fit_line(x_fit)
+
+        y_true = oos_scores
+        y_pred = fit_line(is_scores)
+        ss_res = np.sum((y_true - y_pred) ** 2)
+        ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+        r2 = 1 - (ss_res / ss_tot)
+        title = f"{title} (R² = {r2:.2f})"
+
+        scatter = hv.Scatter((is_scores, oos_scores), 'IS Performance', 'OOS Performance').opts(
+            size=6,
+            color='deepskyblue',
+            tools=['hover'],
+            xlabel='In-Sample',
+            ylabel='Out-of-Sample',
+            width=600,
+            height=600,
+            title=title,
+            show_grid=True,
+            bgcolor=None,
+            gridstyle={'grid_line_alpha': 0.3},
+        )
+
+        regression = hv.Curve((x_fit, y_fit), label=f"Linear Fit: y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}").opts(
+            color='orange',
+            line_width=2,
+            line_dash='dashed'
+        )
+
+        ideal = hv.Curve((x_fit, x_fit), label="Ideal 45° Line").opts(
+            color='lightgrey',
+            line_width=2,
+            line_dash='dotted'
+        )
+
+        layout = (scatter * regression * ideal).opts(
+            hv.opts.Overlay(legend_position='bottom_right', shared_axes=True)
+        )
+
+        return layout
     
 #### ============= Montecarlo Bootstrapping Summary ============= ####
 if TYPE_CHECKING:
