@@ -146,15 +146,45 @@ class MonteCarloBootstrapping:
         bench.index = pd.to_datetime(bench.index)
         return bench
 
-    def results(self, summarized=False):
-        res = self.mc_with_replacement()
-        df = pd.DataFrame(res['simulated_stats'])
-        df.loc['Original'] = res['original_stats']
-        if summarized:
-            desc = df.describe()
-            desc = desc.drop(index=['count', 'mean'])
-            return desc
-        return df
+    def results(self):
+     res = self.mc_with_replacement()
+     df = pd.DataFrame(res['simulated_stats'])
+     df.loc['Original'] = res['original_stats']
+     df_sim = df.drop(index='Original')
+
+     summary = df_sim.describe().drop(index=['count', 'mean'])
+     print("=== Monte Carlo Simulation Summary ===")
+     print(summary)
+
+     # p-value
+     print("\n=== Empirical P-Value Tests (Simulated vs Original) ===")
+     for metric in ['CumulativeReturn', 'Sharpe', 'Sortino', 'Calmar', 'MaxDrawdown']:
+        sim_values = df_sim[metric].dropna().values
+        orig_value = df.loc['Original', metric]
+
+        rank = np.sum(sim_values <= orig_value)
+        p_left = (rank + 1) / (len(sim_values) + 1)  
+        p_right = 1 - p_left
+        p_val = 2 * min(p_left, p_right)
+        print(f"{metric:>18}: p-value = {p_val:.5f} | original = {orig_value:.4f} | sim_mean = {sim_values.mean():.4f}")
+
+     if self.pf is not None and hasattr(self.pf, 'benchmark_returns'):
+        bench_ret = self._convert_frequency(self.pf.benchmark_returns())
+        bench_stats = self._analyze_series(bench_ret)
+
+        print("\n=== Empirical P-Value Tests (Simulated vs Benchmark) ===")
+        for metric in ['CumulativeReturn', 'Sharpe', 'Sortino', 'Calmar', 'MaxDrawdown']:
+            sim_values = df_sim[metric].dropna().values
+            bench_value = bench_stats[metric]
+
+            rank = np.sum(sim_values <= bench_value)
+            p_left = (rank + 1) / (len(sim_values) + 1)
+            p_right = 1 - p_left
+            p_val = 2 * min(p_left, p_right)
+
+            print(f"{metric:>18}: p-value = {p_val:.5f} | benchmark = {bench_value:.4f} | sim_mean = {sim_values.mean():.4f}")
+            
+     return df
     
     def plot_histograms(self, mc_results: pd.DataFrame = None):
         """ shows 4 histograms (sharpe, sortino, calmar, max_dd)"""
