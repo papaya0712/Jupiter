@@ -26,7 +26,7 @@
 
 ### Quick guide
 for more detailed explanations, tutorials coming soon
-## 1st. Define your strategy
+## 1. Define your strategy
 
 ```python
 import pandas as pd
