@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import logging  
 
 from dataclasses import dataclass
-from typing import Dict, Any, Sequence, Tuple, List
+from typing import Dict, Any, Sequence, Tuple, List, Optional
 from hyperopt import space_eval, STATUS_OK, tpe, fmin, Trials
 from quantybt.plots import _PlotTrainTestSplit, _PlotGeneralization
 from quantybt.analyzer import Analyzer
@@ -201,97 +201,79 @@ def _to_dict(obj: Any) -> Dict:
     return dict(obj)
 
 @dataclass
-class _SplitCfg:
-    frac_val: float = 0.3       
-    random_state: int = 42         
+class _WFOSplitCfg:
+    n_folds: int = 3
+    test_size: float = 0.3
+    min_train_size: float = 0.2
 
 class AdvancedOptimizer:
-    """
-    Advanced strategy optimizer that balances performance and robustness using Generalization Loss (GL).
-    Designed to find parameters that perform well on unseen data while minimizing overfitting.
-
-    Core intention: Penalizes parameter sets that show large performance gaps between training and validation splits.
-
-    Key Features:
-    - Multi-Split Cross-Validation: Tests parameters on multiple temporal splits to simulate different market regimes
-    - Adaptive Regularization: Uses beta-controlled penalty term to enforce robustness
-
-    Parameters:
-    analyzer (Analyzer): Configured strategy analyzer with data and settings
-    max_evals (int): Maximum optimization trials (100-500 recommended)
-    target_metric (str): Optimization target ('sharpe_ratio', 'sortino_ratio', 'calmar_ratio', etc.)
-    beta (float): Regularization strength [0-1]:
-        - 0.3 : Aggressive optimization (prioritize performance)
-        - 0.5 : Balanced approach (default)
-        - 1.0 : Conservative optimization (maximize robustness)
-    split_cfg (SplitCfg): Configuration for temporal validation splits
-    
-    Usage:
-    >>> optimizer = TrainTestOptimizer(analyzer, max_evals=100, target_metric="sharpe_ratio", beta=0.7)
-    >>> best_params, trials = optimizer.optimize()
-    >>> results = optimizer.evaluate()
-    """
     def __init__(
         self,
         analyzer,
-        max_evals: int = 100,
+        max_evals: int = 25,
         target_metric: str = "sharpe_ratio",
-        beta: float = 0.5,
-        split_cfg: _SplitCfg | Sequence[_SplitCfg] = _SplitCfg(),
+        beta: float = 0.3,
+        split_cfg: _WFOSplitCfg | Sequence[_WFOSplitCfg] = _WFOSplitCfg(),
     ):
-        # --- Plausibilität -------------------------------------------------- #
         if analyzer.test_size <= 0:
             raise ValueError("Analyzer must use test_size > 0 for optimization")
-
-        # --- Grundlegende Eigenschaften ------------------------------------ #
         self.analyzer = analyzer
         self.strategy = analyzer.strategy
         self.timeframe = analyzer.timeframe
         self.max_evals = max_evals
         self.target_metric = target_metric
+        self.beta = beta
         self.init_cash = analyzer.init_cash
         self.fees = analyzer.fees
         self.slippage = analyzer.slippage
         self.s = analyzer.s
-        self.beta = beta
-
-        # --- Split-Konfiguration ------------------------------------------- #
-        self.split_cfgs: List[_SplitCfg] = (
-            [split_cfg] if isinstance(split_cfg, _SplitCfg) else list(split_cfg)
+        self.split_cfgs: List[_WFOSplitCfg] = (
+            [split_cfg] if isinstance(split_cfg, _WFOSplitCfg)
+            else list(split_cfg)
         )
         self._splits: List[Tuple[pd.DataFrame, pd.DataFrame]] = self._prepare_splits()
-
-        # --- Platzhalter ---------------------------------------------------- #
-        self.best_params: Dict[str, Any] | None = None
-        self.trials: Trials | None = None
-        self.train_pf: vbt.Portfolio | None = None
-        self.test_pf: vbt.Portfolio | None = None
-
-        # --- Historien für Analyse & Plotter -------------------------------- #
-        self._history_diffs: List[float] = []              # Generalization-Loss pro Trial
-        self.trial_metrics: List[Tuple[float, float]] = [] # (m_is̅, m_val̅)  – Komp. für alten Plotter
-
-        # --- Metrik-Mapping ------------------------------------------------- #
+        self.best_params: Optional[Dict[str, Any]] = None
+        self.trials: Optional[Trials] = None
+        self.train_pf: Optional[vbt.Portfolio] = None
+        self.test_pf: Optional[vbt.Portfolio] = None
+        self._history_diffs: List[float] = []
+        self._history_gl_max: List[float] = []
+        self.trial_metrics: List[Tuple[float, float]] = []
         self.metrics_map = {
-            "sharpe_ratio":   lambda pf: self.s._risk_adjusted_metrics(self.timeframe, pf)[0],
-            "sortino_ratio":  lambda pf: self.s._risk_adjusted_metrics(self.timeframe, pf)[1],
-            "calmar_ratio":   lambda pf: self.s._risk_adjusted_metrics(self.timeframe, pf)[2],
-            "total_return":   lambda pf: self.s._returns(pf)[0],
-            "max_drawdown":   lambda pf: self.s._risk_metrics(self.timeframe, pf)[0],
-            "volatility":     lambda pf: self.s._risk_metrics(self.timeframe, pf)[2],
-            "profit_factor":  lambda pf: pf.stats().get("Profit Factor", np.nan),
+            "sharpe_ratio": lambda pf: self.s._risk_adjusted_metrics(self.timeframe, pf)[0],
+            "sortino_ratio": lambda pf: self.s._risk_adjusted_metrics(self.timeframe, pf)[1],
+            "calmar_ratio": lambda pf: self.s._risk_adjusted_metrics(self.timeframe, pf)[2],
+            "total_return": lambda pf: self.s._returns(pf)[0],
+            "max_drawdown": lambda pf: self.s._risk_metrics(self.timeframe, pf)[0],
+            "volatility": lambda pf: self.s._risk_metrics(self.timeframe, pf)[2],
+            "profit_factor": lambda pf: pf.stats().get("Profit Factor", np.nan),
         }
 
-    def _prepare_splits(self) -> List[Tuple[pd.DataFrame, pd.DataFrame]]:
-        """timebased Train/Val-Splits """
-        df = self.analyzer.train_df.sort_index()
-        splits: List[Tuple[pd.DataFrame, pd.DataFrame]] = []
-        for cfg in self.split_cfgs:
-            split_idx = int(len(df) * (1 - cfg.frac_val))
-            train_df = df.iloc[:split_idx].copy()
-            val_df   = df.iloc[split_idx:].copy()
+    def _generate_anchored_splits(self, df: pd.DataFrame, cfg: _WFOSplitCfg) -> List[Tuple[pd.DataFrame, pd.DataFrame]]:
+        total_samples = len(df)
+        test_samples = int(cfg.test_size * total_samples)
+        min_train_samples = int(cfg.min_train_size * total_samples)
+        if min_train_samples + cfg.n_folds * test_samples > total_samples:
+            raise ValueError(
+                f"Not enough data for {cfg.n_folds} folds"
+            )
+        splits = []
+        current_start = min_train_samples
+        for _ in range(cfg.n_folds):
+            if current_start + test_samples > total_samples:
+                break
+            train_df = df.iloc[:current_start]
+            val_df = df.iloc[current_start:current_start + test_samples]
             splits.append((train_df, val_df))
+            current_start += test_samples
         return splits
+
+    def _prepare_splits(self) -> List[Tuple[pd.DataFrame, pd.DataFrame]]:
+        df = self.analyzer.train_df.sort_index()
+        all_splits = []
+        for cfg in self.split_cfgs:
+            all_splits.extend(self._generate_anchored_splits(df, cfg))
+        return all_splits
 
     def _metric(self, pf: vbt.Portfolio) -> float:
         if self.target_metric in self.metrics_map:
@@ -308,34 +290,14 @@ class AdvancedOptimizer:
 
     def _objective(self, params: dict) -> dict:
      try:
-       
-        seed = int(abs(hash(frozenset(params.items())))) % 2**32
+        
+        seed = int(abs(hash(frozenset(params.items()))) % 2**32)
         np.random.seed(seed)
 
         losses, is_metrics, val_metrics = [], [], []
-        metric_higher_is_better = self.target_metric not in ["max_drawdown", "volatility"]
-
-        def compute_gl(m_is: float, m_val: float, higher_is_better: bool) -> float:
-            try:
-                if not np.isfinite(m_is) or not np.isfinite(m_val):
-                    return 1.0
-
-                if higher_is_better:
-                    if m_is <= 0:
-                        return 1.0
-                    ratio = m_val / m_is
-                else:
-                    if m_val <= 0:
-                        return 1.0
-                    ratio = m_is / m_val
-
-                return max(0.0, min(1.0, 1.0 - ratio))
-
-            except Exception:
-                return 1.0
+        higher_is_better = self.target_metric not in ["max_drawdown", "volatility"]
 
         for train_df, val_df in self._splits:
-            # --- Train ------------------------------------------ #
             df_train = self.strategy.preprocess_data(train_df.copy(), params)
             sig_train = self.strategy.generate_signals(df_train, **params)
             pf_train = vbt.Portfolio.from_signals(
@@ -354,7 +316,6 @@ class AdvancedOptimizer:
             )
             m_is = self._metric(pf_train)
 
-            # --- Validation ------------------------------------- #
             df_val = self.strategy.preprocess_data(val_df.copy(), params)
             sig_val = self.strategy.generate_signals(df_val, **params)
             pf_val = vbt.Portfolio.from_signals(
@@ -373,60 +334,60 @@ class AdvancedOptimizer:
             )
             m_val = self._metric(pf_val)
 
-            # --- Generalization Loss ---------------------------- #
-            gl = compute_gl(m_is, m_val, metric_higher_is_better)
+            # Compute generalization loss with clipping to [0,1]
+            if higher_is_better:
+                if m_is <= 0 or not np.isfinite(m_is) or not np.isfinite(m_val):
+                    gl = 1.0
+                else:
+                    raw_gl = 1.0 - (m_val / m_is)
+                    gl = max(0.0, min(1.0, raw_gl))
+            else:
+                if m_val <= 0 or not np.isfinite(m_is) or not np.isfinite(m_val):
+                    gl = 1.0
+                else:
+                    raw_gl = 1.0 - (m_is / m_val)
+                    gl = max(0.0, min(1.0, raw_gl))
 
+            # Collect losses and metrics
+            losses.append((-m_val, gl))
             is_metrics.append(m_is)
             val_metrics.append(m_val)
-            losses.append((-m_val, gl))
 
-            # Debugging Split
-            print(f"[GL] Split: m_is={m_is:.4f}, m_val={m_val:.4f}, GL={gl:.4f}")
+        m_val_avg = -np.mean([l[0] for l in losses]) 
+        gl_max    = max([l[1] for l in losses])          
 
-        m_val_bar = float(np.mean([l[0] for l in losses])) * -1
-        gl_bar = float(np.mean([l[1] for l in losses]))
+        scale_raw = np.std(self._history_diffs[-10:]) if len(self._history_diffs) >= 10 else 1.0
+        scale     = np.clip(scale_raw if scale_raw > 0 else 1.0, 0.1, 10.0)
 
+        loss = -m_val_avg + self.beta * (gl_max / scale)
 
-        self._history_diffs.append(gl_bar)
-        scale_raw = np.std(self._history_diffs)
-        scale = np.clip(scale_raw if scale_raw > 0 else 1.0, 0.1, 10.0)
-
-        loss = -m_val_bar + self.beta * (gl_bar / scale)
-
-        self.trial_metrics.append((float(np.mean(is_metrics)), float(np.mean(val_metrics))))
-
-        print(f"[Trial Summary] m_val̅={m_val_bar:.4f}, GL̅={gl_bar:.4f}, Loss={loss:.4f}")
+        self._history_gl_max.append(gl_max)
+        self._history_diffs.append(loss)
+        self.trial_metrics.append((np.mean(is_metrics), np.mean(val_metrics)))
 
         return {"loss": loss, "status": STATUS_OK, "params": params}
 
      except Exception as e:
-        logger.error(f"Objective-Fehler bei Params {params}: {e}", exc_info=True)
+        logger.error(f"Objective error: {e}", exc_info=True)
         return {"loss": np.inf, "status": STATUS_OK}
-     
+
     def optimize(self) -> Tuple[dict, Trials]:
-        """hyperopt start"""
-        trials = Trials()
-        best_space = fmin(
+        self.trials = Trials()
+        best = fmin(
             fn=self._objective,
             space=self.strategy.param_space,
             algo=tpe.suggest,
             max_evals=self.max_evals,
-            trials=trials,
+            trials=self.trials,
             rstate=np.random.default_rng(42),
         )
-        self.trials = trials
-        self.best_params = space_eval(self.strategy.param_space, best_space)
-        return self.best_params, trials
+        self.best_params = space_eval(self.strategy.param_space, best)
+        return self.best_params, self.trials
 
     def evaluate(self) -> Dict[str, Any]:
-        """returns the train and test vbt stats summary"""
         if self.best_params is None:
-            raise ValueError("Rufe zuerst .optimize() auf!")
-
-       
-        df_train_full = self.strategy.preprocess_data(
-            self.analyzer.train_df.copy(), self.best_params
-        )
+            raise ValueError("Call .optimize() first")
+        df_train_full = self.strategy.preprocess_data(self.analyzer.train_df.copy(), self.best_params)
         sig_train = self.strategy.generate_signals(df_train_full, **self.best_params)
         self.train_pf = vbt.Portfolio.from_signals(
             close=df_train_full[self.s.price_col],
@@ -442,10 +403,7 @@ class AdvancedOptimizer:
             sl_stop=self.best_params.get("sl_pct"),
             tp_stop=self.best_params.get("tp_pct"),
         )
-
-        df_test = self.strategy.preprocess_data(
-            self.analyzer.test_df.copy(), self.best_params
-        )
+        df_test = self.strategy.preprocess_data(self.analyzer.test_df.copy(), self.best_params)
         sig_test = self.strategy.generate_signals(df_test, **self.best_params)
         self.test_pf = vbt.Portfolio.from_signals(
             close=df_test[self.s.price_col],
@@ -461,42 +419,18 @@ class AdvancedOptimizer:
             sl_stop=self.best_params.get("sl_pct"),
             tp_stop=self.best_params.get("tp_pct"),
         )
-
-        train_summary_raw = self.s.backtest_summary(self.train_pf, self.timeframe)
-        test_summary_raw  = self.s.backtest_summary(self.test_pf,  self.timeframe)
-
-        train_summary = _to_dict(train_summary_raw)
-        test_summary  = _to_dict(test_summary_raw)
-
-        test_stats = self.test_pf.stats()
-        test_summary["max_drawdown"]  = test_stats.get("Max Drawdown")
-        test_summary["profit_factor"] = test_stats.get("Profit Factor")
-
+        train_summary = _to_dict(self.train_pf.stats())
+        test_summary = _to_dict(self.test_pf.stats())
         return {
             "train_pf": self.train_pf,
-            "test_pf":  self.test_pf,
+            "test_pf": self.test_pf,
             "train_summary": train_summary,
-            "test_summary":  test_summary,
+            "test_summary": test_summary,
             "history_generalization_loss": self._history_diffs,
         }
 
-    def plot_train_test(
-        self,
-        title: str = "Train vs Hold-out Performance",
-        export_html: bool = False,
-        export_image: bool = False,
-        file_name: str = "train_test_plot[QuantyBT]",
-    ):
-        
-        return _PlotTrainTestSplit(self).plot_oos(
-            title=title,
-            export_html=export_html,
-            export_image=export_image,
-            file_name=file_name,
-        )
+    def plot_train_test(self, title: str = "Train vs Hold-out Performance", export_html: bool = False, export_image: bool = False, file_name: str = "train_test_plot"):
+        return _PlotTrainTestSplit(self).plot_oos(title=title, export_html=export_html, export_image=export_image, file_name=file_name)
 
     def plot_generalization(self, title: str = "Generalization Performance"):
         return _PlotGeneralization(self).plot_generalization(title=title)
-
-# ==================================== Walk-forward Optimizer (soon) ==================================== #
-

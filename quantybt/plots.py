@@ -101,7 +101,7 @@ class _PlotBacktest:
                 y=strategy_equity.values,
                 mode="lines",
                 name="Strategy Equity",
-                fill="tozeroy",
+                #fill="tozeroy",
             ),
             row=1,
             col=1,
@@ -112,7 +112,7 @@ class _PlotBacktest:
                 y=benchmark_equity.values,
                 mode="lines",
                 name="Benchmark Equity",
-                fill="tozeroy",
+                #fill="tozeroy",
             ),
             row=1,
             col=1,
@@ -166,7 +166,7 @@ class _PlotBacktest:
         fig.add_trace(
             go.Histogram(
                 x=trade_returns,
-                nbinsx=30,
+                nbinsx=50,
                 histnorm="percent",
                 name="Return Histogram",
                 showlegend=False,
@@ -196,8 +196,8 @@ class _PlotBacktest:
                 pass
 
         return fig
-
-#### ============= OOS Summary ============= ####
+    
+#### ============= opt Summary ============= ####
 class _PlotTrainTestSplit:
     def __init__(self, optimizer):
         self.optimizer = optimizer
@@ -477,3 +477,40 @@ class _PlotBootstrapping:
 
         final_plot = (plot_sharpe + plot_sortino + plot_calmar + plot_maxdd).opts(shared_axes=False)
         return final_plot
+    
+#### ============= Finite Differences analysis Summary ============= #### 
+class _PlotFinDiff:
+    def __init__(self, matrix: pd.DataFrame, title: str = "Parameter Sensitivities"):
+        self.df = matrix
+        self.title = title
+
+    def heatmap(self) -> hv.HeatMap:
+        data = (
+            self.df.filter(like="relative_sensitivity_")
+                .rename(columns=lambda c: c.replace("relative_sensitivity_", ""))
+                .reset_index()
+                .melt(id_vars="parameter", var_name="metric", value_name="rs")
+        )
+
+        return hv.HeatMap(
+            data,
+            kdims=["parameter", "metric"],
+            vdims=["rs"]
+        ).opts(
+            cmap="Plasma",
+            colorbar=True,
+            invert_yaxis=True,
+            width=600,
+            height=300,
+            tools=["hover"],
+            xlabel="Metrik",
+            ylabel="Parameter",
+            hover_tooltips=[
+                ("Parameter", "@parameter"),
+                ("Metrik", "@metric"),
+                ("RelSens", "@rs{0.000}"),
+            ],
+            title=self.title,
+        )
+
+#

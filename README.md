@@ -9,17 +9,17 @@
 - **Custom Model Support**: Native wrappers for custom-implemented models (e.g., Kalman Filters) and statistical frameworks.  
 - **Built-in data loaders** for cryptocurrencies from Binance (no api needed!).
 - **Modular architecture**: define strategies by inheriting from a base `Strategy` class (`preprocess`, `generate_signals`, `param_space`).
-- **Robust Validation**: Out-of-sample splits and hyperparameter tuning via [Hyperopt](https://github.com/hyperopt/hyperopt).  
+- **Robust Validation**: Out-of-sample splits and hyperparameter tuning via [Hyperopt](https://github.com/hyperopt/hyperopt).
+- **Anchored Walkforward-Optimization**: with generalization loss function for dynamic overfitting control  
 - **Statistical analysis tools**: Monte Carlo simulations
+- **Parameter Sensitivity**: finite differences for local sensitivity (global incoming) 
 - **Performance reporting**: generate equity curves, heatmaps, and metric summaries with minimal boilerplate.
 
 ---
 
 ## Incoming Features
 
-- **More Custom Models** 
-- **Walk-Forward Optimization (WFO)** with automated plotting and summary reports  
-- **Sensitivity Analysis** for identifying and mitigating overfitting  
+- **More Custom Models**  
 - **Portfolio Optimization** with advanced methods (HRP, CVaR, Maximum Entropy, ...)  
 
 ---
