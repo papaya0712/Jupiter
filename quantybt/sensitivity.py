@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import holoviews as hv
 import vectorbt as vbt
-from typing import Dict, Callable, List, int, Any, Optional, Union, Sequence
+from typing import Dict, Callable, List, Any, Optional, Union, Sequence
 from .plots import _PlotFinDiff
 from .stats import Stats
 from .analyzer import Analyzer
